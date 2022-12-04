@@ -1,0 +1,1 @@
+java -Djava.library.path=../build/Debug org.navi.Navi
