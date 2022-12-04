@@ -1,0 +1,4 @@
+[submodule "recastnavigation"]
+	path = thirdparty/recastnavigation
+	url = https://github.com/blus007/recastnavigation.git
+	branch = main
