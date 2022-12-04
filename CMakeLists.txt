@@ -52,3 +52,7 @@ if (APPLE)
 else ( )
     add_library(RecastJni SHARED ${SRC_LIST})
 endif ( )
+
+add_subdirectory(thirdparty/recastnavigation)
+
+add_dependencies(RecastJni Detour DetourTileCache Recast)
