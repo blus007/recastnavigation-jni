@@ -37,9 +37,16 @@ endif ()
 include_directories(${JAVA_HOME}/include)
 include_directories(${JAVA_HOME}/include/darwin)
 
+set(RECAST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/recastnavigation)
+include_directories(${RECAST_DIR}/Detour/Include)
+include_directories(${RECAST_DIR}/DetourTileCache/Include)
+include_directories(${RECAST_DIR}/Recast/Include)
+include_directories(${RECAST_DIR}/RecastDemo/Contrib/fastlz)
+
 set(CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 set(SRC_LIST ${CPP_PATH}/Navi.cpp
     ${CPP_PATH}/NaviExport.cpp
+    ${RECAST_DIR}/RecastDemo/Contrib/fastlz/fastlz.c
 )
 set(SRC_LIST ${SRC_LIST}
     ${CPP_PATH}/Navi.h
@@ -56,3 +63,7 @@ endif ( )
 add_subdirectory(thirdparty/recastnavigation)
 
 add_dependencies(RecastJni Detour DetourTileCache Recast)
+target_link_libraries(RecastJni Detour DetourTileCache Recast)
+
+add_executable(RecastJniTest ${CPP_PATH}/Main.cpp)
+add_dependencies(RecastJniTest RecastJni)

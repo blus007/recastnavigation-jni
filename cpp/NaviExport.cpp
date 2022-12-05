@@ -42,8 +42,7 @@ JNIEXPORT jstring JNICALL Java_org_navi_Navi_loadMesh
   (JNIEnv *env, jobject self, jstring filePath)
 {
     printf("begin\n");
-    Navi navi;
-    navi.Print();
+//    Navi navi;
 	char* str = jstring2String(env, filePath);
 	printf("%s\n", str);
 	free(str);

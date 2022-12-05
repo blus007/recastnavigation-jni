@@ -1,7 +1,278 @@
-#include "stdio.h"
+#include <stdio.h>
+#include <string>
+#include "DetourCommon.h"
+#include "DetourNavMesh.h"
+#include "DetourNavMeshBuilder.h"
+#include "DetourNavMeshQuery.h"
+#include "DetourTileCache.h"
+#include "DetourTileCacheBuilder.h"
+#include "fastlz.h"
 #include "Navi.h"
 
-void Navi::Print()
+static const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
+static const int TILECACHESET_VERSION = 1;
+
+struct TileCacheSetHeader
 {
-    printf("Navi\n");
+    int magic;
+    int version;
+    int numTiles;
+    dtNavMeshParams meshParams;
+    dtTileCacheParams cacheParams;
+};
+
+struct TileCacheTileHeader
+{
+    dtCompressedTileRef tileRef;
+    int dataSize;
+};
+
+/////////////////////////////////////////////////////////////////
+// FastLZCompressor
+struct FastLZCompressor : public dtTileCacheCompressor
+{
+    virtual ~FastLZCompressor();
+    
+    virtual int maxCompressedSize(const int bufferSize)
+    {
+        return (int)(bufferSize* 1.05f);
+    }
+    
+    virtual dtStatus compress(const unsigned char* buffer, const int bufferSize,
+                              unsigned char* compressed, const int /*maxCompressedSize*/, int* compressedSize)
+    {
+        *compressedSize = fastlz_compress((const void *const)buffer, bufferSize, compressed);
+        return DT_SUCCESS;
+    }
+    
+    virtual dtStatus decompress(const unsigned char* compressed, const int compressedSize,
+                                unsigned char* buffer, const int maxBufferSize, int* bufferSize)
+    {
+        *bufferSize = fastlz_decompress(compressed, compressedSize, buffer, maxBufferSize);
+        return *bufferSize < 0 ? DT_FAILURE : DT_SUCCESS;
+    }
+};
+
+FastLZCompressor::~FastLZCompressor()
+{
+    // Defined out of line to fix the weak v-tables warning
+}
+
+/////////////////////////////////////////////////////////////////
+// LinearAllocator
+struct LinearAllocator : public dtTileCacheAlloc
+{
+    unsigned char* buffer;
+    size_t capacity;
+    size_t top;
+    size_t high;
+    
+    LinearAllocator(const size_t cap) : buffer(0), capacity(0), top(0), high(0)
+    {
+        resize(cap);
+    }
+    
+    virtual ~LinearAllocator();
+    
+    void resize(const size_t cap)
+    {
+        if (buffer) dtFree(buffer);
+        buffer = (unsigned char*)dtAlloc(cap, DT_ALLOC_PERM);
+        capacity = cap;
+    }
+    
+    virtual void reset()
+    {
+        high = dtMax(high, top);
+        top = 0;
+    }
+    
+    virtual void* alloc(const size_t size)
+    {
+        if (!buffer)
+            return 0;
+        if (top+size > capacity)
+            return 0;
+        unsigned char* mem = &buffer[top];
+        top += size;
+        return mem;
+    }
+    
+    virtual void free(void* /*ptr*/)
+    {
+        // Empty
+    }
+};
+
+LinearAllocator::~LinearAllocator()
+{
+    // Defined out of line to fix the weak v-tables warning
+    dtFree(buffer);
+}
+
+/////////////////////////////////////////////////////////////////
+// MeshProcess
+struct MeshProcess : public dtTileCacheMeshProcess
+{
+    inline MeshProcess()
+    {
+    }
+    
+    virtual ~MeshProcess();
+    
+    virtual void process(struct dtNavMeshCreateParams* params,
+                         unsigned char* polyAreas, unsigned short* polyFlags)
+    {
+        // Update poly flags from areas.
+        for (int i = 0; i < params->polyCount; ++i)
+        {
+            if (polyAreas[i] == DT_TILECACHE_WALKABLE_AREA)
+                polyAreas[i] = POLYAREA_GROUND;
+            
+            if (polyAreas[i] == POLYAREA_GROUND ||
+                polyAreas[i] == POLYAREA_GRASS ||
+                polyAreas[i] == POLYAREA_ROAD)
+            {
+                polyFlags[i] = POLYFLAGS_WALK;
+            }
+            else if (polyAreas[i] == POLYAREA_WATER)
+            {
+                polyFlags[i] = POLYFLAGS_SWIM;
+            }
+            else if (polyAreas[i] == POLYAREA_DOOR)
+            {
+                polyFlags[i] = POLYFLAGS_WALK | POLYFLAGS_DOOR;
+            }
+        }
+    }
+};
+
+MeshProcess::~MeshProcess()
+{
+    // Defined out of line to fix the weak v-tables warning
+}
+
+Navi::Navi()
+:mNavMesh(nullptr)
+,mNavQuery(nullptr)
+,mTileCache(nullptr)
+,mAlloc(nullptr)
+,mComp(nullptr)
+,mProc(nullptr)
+{
+    mAlloc = new LinearAllocator(32000);
+    mComp = new FastLZCompressor;
+    mProc = new MeshProcess;
+}
+
+Navi::~Navi()
+{
+    dtFreeNavMeshQuery(mNavQuery);
+    dtFreeNavMesh(mNavMesh);
+    dtFreeTileCache(mTileCache);
+    
+    delete mAlloc;
+    delete mComp;
+    delete mProc;
+}
+
+bool Navi::Load(const char* path)
+{
+    dtFreeNavMeshQuery(mNavQuery);
+    dtFreeNavMesh(m_navMesh);
+    dtFreeTileCache(m_tileCache);
+
+    FILE* fp = fopen(path, "rb");
+    if (!fp)
+        return false;
+    
+    // Read header.
+    TileCacheSetHeader header;
+    size_t headerReadReturnCode = fread(&header, sizeof(TileCacheSetHeader), 1, fp);
+    if( headerReadReturnCode != 1)
+    {
+        // Error or early EOF
+        fclose(fp);
+        return false;
+    }
+    if (header.magic != TILECACHESET_MAGIC)
+    {
+        fclose(fp);
+        return false;
+    }
+    if (header.version != TILECACHESET_VERSION)
+    {
+        fclose(fp);
+        return false;
+    }
+    
+    mNavMesh = dtAllocNavMesh();
+    if (!mNavMesh)
+    {
+        fclose(fp);
+        return false;
+    }
+    dtStatus status = mNavMesh->init(&header.meshParams);
+    if (dtStatusFailed(status))
+    {
+        fclose(fp);
+        return false;
+    }
+    
+    mTileCache = dtAllocTileCache();
+    if (!mTileCache)
+    {
+        fclose(fp);
+        return false;
+    }
+    
+    status = mTileCache->init(&header.cacheParams, mAlloc, mComp, mProc);
+    if (dtStatusFailed(status))
+    {
+        fclose(fp);
+        return false;
+    }
+    
+    // Read tiles.
+    for (int i = 0; i < header.numTiles; ++i)
+    {
+        TileCacheTileHeader tileHeader;
+        size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, fp);
+        if( tileHeaderReadReturnCode != 1)
+        {
+            // Error or early EOF
+            fclose(fp);
+            return false;
+        }
+        if (!tileHeader.tileRef || !tileHeader.dataSize)
+            break;
+        
+        unsigned char* data = (unsigned char*)dtAlloc(tileHeader.dataSize, DT_ALLOC_PERM);
+        if (!data) break;
+        memset(data, 0, tileHeader.dataSize);
+        size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, fp);
+        if( tileDataReadReturnCode != 1)
+        {
+            // Error or early EOF
+            dtFree(data);
+            fclose(fp);
+            return false;
+        }
+        
+        dtCompressedTileRef tile = 0;
+        dtStatus addTileStatus = mTileCache->addTile(data, tileHeader.dataSize, DT_COMPRESSEDTILE_FREE_DATA, &tile);
+        if (dtStatusFailed(addTileStatus))
+        {
+            dtFree(data);
+        }
+        
+        if (tile)
+            mTileCache->buildNavMeshTile(tile, mNavMesh);
+    }
+    
+    fclose(fp);
+    
+    mNavQuery = dtAllocNavMeshQuery();
+    m_navQuery->init(mNavMesh, 2048);
+    return true;
 }
