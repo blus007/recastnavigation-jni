@@ -11,6 +11,7 @@
 
 static const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
 static const int TILECACHESET_VERSION = 1;
+static const int MAX_CONVEXVOL_PTS = 12;
 
 struct TileCacheSetHeader
 {
@@ -176,7 +177,7 @@ Navi::~Navi()
     delete mProc;
 }
 
-bool Navi::Load(const char* path)
+bool Navi::LoadMesh(const char* path)
 {
     dtFreeNavMeshQuery(mNavQuery);
     dtFreeNavMesh(m_navMesh);
@@ -275,4 +276,155 @@ bool Navi::Load(const char* path)
     mNavQuery = dtAllocNavMeshQuery();
     m_navQuery->init(mNavMesh, 2048);
     return true;
+}
+
+bool Navi::LoadDoors(const char* path)
+{
+    mDoors.clear();
+    const int maxSize = 1024;
+    char buffer1[maxSize];
+    char buffer2[maxSize];
+    FILE* file = fopen(path, "r");
+    if (!file)
+        return;
+    char* buffer = buffer1;
+    int bufferPos = 0;
+    int readCount = 0;
+    bool readEnd = false;
+    
+    Vector3 vert;
+    VolumeDoor door;
+    door.id = 0;
+
+    int vertIndex = 0;
+    const int volumeTagSize = strlen(sVolumeTag);
+    const int areaTagSize = strlen(sAreaTag);
+    const int hminTagSize = strlen(sHminTag);
+    const int hmaxTagSize = strlen(sHmaxTag);
+    const int nvertsTagSize = strlen(sNvertsTag);
+    const int vertTagSize = strlen(sVertTag);
+    const int scanFormatSize = 256;
+    char scanFormat[scanFormatSize];
+    do
+    {
+        char* str = buffer == buffer1 ? buffer2 : buffer1;
+        bool success = readLine(file, buffer, maxSize, bufferPos, readCount, str, readEnd);
+        if (!success && readEnd)
+            break;
+        if (strncmp(str, sVolumeTag, volumeTagSize) == 0)
+        {
+            if (door.id)
+                mDoors.push_back(door);
+            snprintf(scanFormat, scanFormatSize, "%s%%d", sVolumeTag);
+            sscanf(str, scanFormat, &volume.id);
+            vertIndex = 0;
+            continue;
+        }
+        if (strncmp(str, sVertTag, vertTagSize) == 0)
+        {
+            snprintf(scanFormat, scanFormatSize, "%sx:%%f,y:%%f,z:%%f", sVertTag);
+            sscanf(str, scanFormat, &vert.x, &vert.y, &vert.z);
+            door.verts.push_back(vert);
+            continue;
+        }
+    } while (true);
+    if (door.id)
+        mDoors.push_back(door);
+    fclose(file);
+}
+
+void Navi::InitDoorsPoly()
+{
+    if (!mNavQuery || !mNavMesh || mDoors.empty())
+        return;
+    for (int i = 0; i < mDoors.size(); ++i)
+    {
+        findDoorPoly(mDoors[i]);
+    }
+}
+
+void Navi::InitDoorPoly(VolumeDoor& door)
+{
+    if (door.verts.empty())
+        return;
+    float centerPos[3] = {0,0,0};
+    const Vector3& firstVert = door.verts[0];
+    float min[3] = {firstVert.x, firstVert.y, firstVert.z};
+    float max[3] = {firstVert.x, firstVert.y, firstVert.z};
+    for (int i = 0; i < vol.nverts; ++i)
+    {
+        dtVadd(centerPos,centerPos,&vol.verts[i*3]);
+        dtVmin(min, &vol.verts[i*3]);
+        dtVmax(max, &vol.verts[i*3]);
+    }
+    dtVscale(centerPos, centerPos, 1.0f/door.verts.size());
+    float halfExtents[3];
+    for (int i = 0; i < 3; ++i)
+        halfExtents[i] = (max[i] - min[i]) * 0.5f;
+    dtQueryFilter filter;
+    filter.setIncludeFlags(POLYFLAGS_DOOR);
+
+    const int maxResult = 64;
+    dtPolyRef resultRef[maxResult];
+    memset(resultRef, 0, sizeof(dtPolyRef) * maxResult);
+    int resultCount = 0;
+    dtStatus status = query->queryPolygons(centerPos, halfExtents, &filter, resultRef, &resultCount, maxResult);
+    if (!(status & DT_SUCCESS))
+        return;
+    door.polys.resize(resultCount);
+    memcpy(&door.polyRefs.front(), resultRef)
+}
+
+VolumeDoor* Navi::FindDoor(const int doorId)
+{
+    for (int i = 0; i < mDoors.size(); ++i)
+    {
+        const VolumeDoor& door = mDoors[i];
+        if (door.id == doorId)
+        {
+            return &d;
+        }
+    }
+    return nullptr;
+}
+
+bool Navi::IsDoorOpen(VolumeDoor* door)
+{
+    if (!door)
+        return false;
+    dtMeshTile* tile = nullptr;
+    dtPoly* cpoly = nullptr;
+    dtPolyRef polyRef = door->polyRefs[0];
+    dtStatus status = mNavMesh->getTileAndPolyByRef(polyRef, &tile, &cpoly);
+    if (status != DT_SUCCESS)
+        return false;
+    return !(poly->flags & SAMPLE_POLYFLAGS_DOOR);
+}
+
+void Navi::OpenDoor(VolumeDoor* door, const bool open)
+{
+    if (!door)
+        return;
+    dtMeshTile* tile = nullptr;
+    dtPoly* cpoly = nullptr;
+    for (int i = 0; i < door->polyRefs.size(); ++i)
+    {
+        dtPolyRef polyRef = door->polyRefs[i];
+        dtStatus status = mNavMesh->getTileAndPolyByRef(polyRef, &tile, &cpoly);
+        if (status != DT_SUCCESS)
+            continue;
+        dtPoly* poly = (dtPoly*)cpoly;
+        if (open)
+            poly->flags &= ~SAMPLE_POLYFLAGS_DOOR;
+        else
+            poly->flags |= SAMPLE_POLYFLAGS_DOOR;
+    }
+}
+
+void Navi::OpenAllDoors(const bool open)
+{
+    for (int i = 0; i < mDoors.size(); ++i)
+    {
+        OpenDoor(mDoors[i], open);
+    }
 }
