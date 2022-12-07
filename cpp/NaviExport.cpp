@@ -1,6 +1,8 @@
 #include <jni.h>
 #include "stdlib.h"
 #include "cstring"
+#include "DetourCommon.h"
+#include "DetourNavMesh.h"
 #include "Navi.h"
 
 static char* jstring2String(JNIEnv* env, jstring jstr)

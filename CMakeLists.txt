@@ -42,14 +42,17 @@ include_directories(${RECAST_DIR}/Detour/Include)
 include_directories(${RECAST_DIR}/DetourTileCache/Include)
 include_directories(${RECAST_DIR}/Recast/Include)
 include_directories(${RECAST_DIR}/RecastDemo/Contrib/fastlz)
+include_directories(${RECAST_DIR}/RecastDemo/Include)
 
 set(CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 set(SRC_LIST ${CPP_PATH}/Navi.cpp
     ${CPP_PATH}/NaviExport.cpp
     ${RECAST_DIR}/RecastDemo/Contrib/fastlz/fastlz.c
+    ${RECAST_DIR}/RecastDemo/Source/Filelist.cpp
 )
 set(SRC_LIST ${SRC_LIST}
     ${CPP_PATH}/Navi.h
+    ${RECAST_DIR}/RecastDemo/Include/Filelist.h
 )
 
 if (APPLE)
@@ -67,3 +70,7 @@ target_link_libraries(RecastJni Detour DetourTileCache Recast)
 
 add_executable(RecastJniTest ${CPP_PATH}/Main.cpp)
 add_dependencies(RecastJniTest RecastJni)
+target_link_libraries(RecastJniTest RecastJni)
+
+set(RECAST_BIN ${RECAST_DIR}/RecastDemo/Bin)
+target_compile_definitions(RecastJniTest PRIVATE -DRECAST_BIN="${RECAST_BIN}")

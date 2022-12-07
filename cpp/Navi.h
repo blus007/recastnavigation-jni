@@ -27,6 +27,18 @@ struct Vector3
     float x;
     float y;
     float z;
+    
+    Vector3()
+    :x(0)
+    ,y(0)
+    ,z(0)
+    {}
+    
+    Vector3(float inX, float inY, float inZ)
+    :x(inX)
+    ,y(inY)
+    ,z(inZ)
+    {}
 };
 
 struct VolumeDoor
@@ -45,6 +57,12 @@ class Navi
     struct LinearAllocator* mAlloc;
     struct FastLZCompressor* mComp;
     struct MeshProcess* mProc;
+    
+    class dtQueryFilter* mFilter;
+    dtPolyRef* mSearchPolys;
+    int mSearchedPolyCount;
+    
+    Vector3 mDefaultPolySize;
     
     std::vector<VolumeDoor> mDoors;
     
@@ -77,4 +95,9 @@ public:
         OpenDoor(door, open);
     }
     void OpenAllDoors(const bool open);
+    int FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize);
+    inline int FindPath(const Vector3& start, const Vector3& end)
+    {
+        return FindPath(start, end, mDefaultPolySize);
+    }
 };

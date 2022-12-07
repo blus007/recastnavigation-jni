@@ -7,11 +7,20 @@
 #include "DetourTileCache.h"
 #include "DetourTileCacheBuilder.h"
 #include "fastlz.h"
+#include "Filelist.h"
 #include "Navi.h"
 
 static const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
 static const int TILECACHESET_VERSION = 1;
 static const int MAX_CONVEXVOL_PTS = 12;
+static const int MAX_POLYS = 256;
+
+const char* sVolumeTag = "Volume:";
+const char* sAreaTag = "\tarea:";
+const char* sHminTag = "\thmin:";
+const char* sHmaxTag = "\thmax:";
+const char* sNvertsTag = "\tnverts:";
+const char* sVertTag = "\t\tvert:";
 
 struct TileCacheSetHeader
 {
@@ -157,13 +166,18 @@ Navi::Navi()
 :mNavMesh(nullptr)
 ,mNavQuery(nullptr)
 ,mTileCache(nullptr)
-,mAlloc(nullptr)
-,mComp(nullptr)
-,mProc(nullptr)
+,mDefaultPolySize(2, 4, 2)
+,mSearchedPolyCount(0)
 {
     mAlloc = new LinearAllocator(32000);
     mComp = new FastLZCompressor;
     mProc = new MeshProcess;
+    
+    mFilter = new dtQueryFilter;
+    mFilter->setIncludeFlags(POLYFLAGS_WALK);
+    mFilter->setExcludeFlags(POLYFLAGS_DOOR);
+    
+    mSearchPolys = new dtPolyRef[MAX_POLYS];
 }
 
 Navi::~Navi()
@@ -171,6 +185,9 @@ Navi::~Navi()
     dtFreeNavMeshQuery(mNavQuery);
     dtFreeNavMesh(mNavMesh);
     dtFreeTileCache(mTileCache);
+    
+    delete mSearchPolys;
+    delete mFilter;
     
     delete mAlloc;
     delete mComp;
@@ -180,8 +197,8 @@ Navi::~Navi()
 bool Navi::LoadMesh(const char* path)
 {
     dtFreeNavMeshQuery(mNavQuery);
-    dtFreeNavMesh(m_navMesh);
-    dtFreeTileCache(m_tileCache);
+    dtFreeNavMesh(mNavMesh);
+    dtFreeTileCache(mTileCache);
 
     FILE* fp = fopen(path, "rb");
     if (!fp)
@@ -274,7 +291,7 @@ bool Navi::LoadMesh(const char* path)
     fclose(fp);
     
     mNavQuery = dtAllocNavMeshQuery();
-    m_navQuery->init(mNavMesh, 2048);
+    mNavQuery->init(mNavMesh, 2048);
     return true;
 }
 
@@ -286,7 +303,7 @@ bool Navi::LoadDoors(const char* path)
     char buffer2[maxSize];
     FILE* file = fopen(path, "r");
     if (!file)
-        return;
+        return false;
     char* buffer = buffer1;
     int bufferPos = 0;
     int readCount = 0;
@@ -298,10 +315,6 @@ bool Navi::LoadDoors(const char* path)
 
     int vertIndex = 0;
     const int volumeTagSize = strlen(sVolumeTag);
-    const int areaTagSize = strlen(sAreaTag);
-    const int hminTagSize = strlen(sHminTag);
-    const int hmaxTagSize = strlen(sHmaxTag);
-    const int nvertsTagSize = strlen(sNvertsTag);
     const int vertTagSize = strlen(sVertTag);
     const int scanFormatSize = 256;
     char scanFormat[scanFormatSize];
@@ -316,7 +329,7 @@ bool Navi::LoadDoors(const char* path)
             if (door.id)
                 mDoors.push_back(door);
             snprintf(scanFormat, scanFormatSize, "%s%%d", sVolumeTag);
-            sscanf(str, scanFormat, &volume.id);
+            sscanf(str, scanFormat, &door.id);
             vertIndex = 0;
             continue;
         }
@@ -331,6 +344,7 @@ bool Navi::LoadDoors(const char* path)
     if (door.id)
         mDoors.push_back(door);
     fclose(file);
+    return true;
 }
 
 void Navi::InitDoorsPoly()
@@ -339,23 +353,28 @@ void Navi::InitDoorsPoly()
         return;
     for (int i = 0; i < mDoors.size(); ++i)
     {
-        findDoorPoly(mDoors[i]);
+        InitDoorPoly(mDoors[i]);
     }
 }
 
 void Navi::InitDoorPoly(VolumeDoor& door)
 {
+    if (!mNavMesh || !mNavQuery)
+    {
+        printf("Navi mesh or query is not inited\n");
+        return;
+    }
     if (door.verts.empty())
         return;
     float centerPos[3] = {0,0,0};
     const Vector3& firstVert = door.verts[0];
     float min[3] = {firstVert.x, firstVert.y, firstVert.z};
     float max[3] = {firstVert.x, firstVert.y, firstVert.z};
-    for (int i = 0; i < vol.nverts; ++i)
+    for (int i = 0; i < door.verts.size(); ++i)
     {
-        dtVadd(centerPos,centerPos,&vol.verts[i*3]);
-        dtVmin(min, &vol.verts[i*3]);
-        dtVmax(max, &vol.verts[i*3]);
+        dtVadd(centerPos,centerPos,(float*)&door.verts[i*3]);
+        dtVmin(min, (float*)&door.verts[i*3]);
+        dtVmax(max, (float*)&door.verts[i*3]);
     }
     dtVscale(centerPos, centerPos, 1.0f/door.verts.size());
     float halfExtents[3];
@@ -368,21 +387,21 @@ void Navi::InitDoorPoly(VolumeDoor& door)
     dtPolyRef resultRef[maxResult];
     memset(resultRef, 0, sizeof(dtPolyRef) * maxResult);
     int resultCount = 0;
-    dtStatus status = query->queryPolygons(centerPos, halfExtents, &filter, resultRef, &resultCount, maxResult);
+    dtStatus status = mNavQuery->queryPolygons(centerPos, halfExtents, &filter, resultRef, &resultCount, maxResult);
     if (!(status & DT_SUCCESS))
         return;
-    door.polys.resize(resultCount);
-    memcpy(&door.polyRefs.front(), resultRef)
+    door.polyRefs.resize(resultCount);
+    memcpy(&door.polyRefs.front(), resultRef, sizeof(dtPolyRef) * resultCount);
 }
 
 VolumeDoor* Navi::FindDoor(const int doorId)
 {
     for (int i = 0; i < mDoors.size(); ++i)
     {
-        const VolumeDoor& door = mDoors[i];
+        VolumeDoor& door = mDoors[i];
         if (door.id == doorId)
         {
-            return &d;
+            return &door;
         }
     }
     return nullptr;
@@ -391,22 +410,32 @@ VolumeDoor* Navi::FindDoor(const int doorId)
 bool Navi::IsDoorOpen(VolumeDoor* door)
 {
     if (!door)
+    {
+        printf("Cannot find door\n");
         return false;
-    dtMeshTile* tile = nullptr;
-    dtPoly* cpoly = nullptr;
+    }
+    const dtMeshTile* tile = nullptr;
+    const dtPoly* cpoly = nullptr;
     dtPolyRef polyRef = door->polyRefs[0];
     dtStatus status = mNavMesh->getTileAndPolyByRef(polyRef, &tile, &cpoly);
     if (status != DT_SUCCESS)
+    {
+        printf("Cannot find door by id %d\n", door->id);
         return false;
-    return !(poly->flags & SAMPLE_POLYFLAGS_DOOR);
+    }
+    dtPoly* poly = (dtPoly*)cpoly;
+    return !(poly->flags & POLYFLAGS_DOOR);
 }
 
 void Navi::OpenDoor(VolumeDoor* door, const bool open)
 {
-    if (!door)
+    if (!door || !mNavMesh)
+    {
+        printf("Navi mesh or door is not inited\n");
         return;
-    dtMeshTile* tile = nullptr;
-    dtPoly* cpoly = nullptr;
+    }
+    const dtMeshTile* tile = nullptr;
+    const dtPoly* cpoly = nullptr;
     for (int i = 0; i < door->polyRefs.size(); ++i)
     {
         dtPolyRef polyRef = door->polyRefs[i];
@@ -415,9 +444,9 @@ void Navi::OpenDoor(VolumeDoor* door, const bool open)
             continue;
         dtPoly* poly = (dtPoly*)cpoly;
         if (open)
-            poly->flags &= ~SAMPLE_POLYFLAGS_DOOR;
+            poly->flags &= ~POLYFLAGS_DOOR;
         else
-            poly->flags |= SAMPLE_POLYFLAGS_DOOR;
+            poly->flags |= POLYFLAGS_DOOR;
     }
 }
 
@@ -425,6 +454,42 @@ void Navi::OpenAllDoors(const bool open)
 {
     for (int i = 0; i < mDoors.size(); ++i)
     {
-        OpenDoor(mDoors[i], open);
+        OpenDoor(&mDoors[i], open);
     }
+}
+
+int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)
+{
+    if (!mNavMesh || !mNavQuery)
+    {
+        printf("Navi mesh or query is not inited\n");
+        return DT_FAILURE;
+    }
+    
+    dtStatus status = DT_SUCCESS;
+    dtPolyRef startRef = 0;
+    dtPolyRef endRef = 0;
+
+    status = mNavQuery->findNearestPoly((float*)&start, (float*)&polySize, mFilter, &startRef, nullptr);
+    if (!(status & DT_SUCCESS))
+    {
+        printf("Cannot find start poly (%f, %f, %f)\n", start.x, start.y, start.z);
+        return status;
+    }
+    
+    status = mNavQuery->findNearestPoly((float*)&end, (float*)&polySize, mFilter, &endRef, nullptr);
+    if (!(status & DT_SUCCESS))
+    {
+        printf("Cannot find end poly (%f, %f, %f)\n", end.x, end.y, end.z);
+        return status;
+    }
+    
+    mSearchedPolyCount = 0;
+    status = mNavQuery->findPath(startRef, endRef, (float*)&start, (float*)&end, mFilter, mSearchPolys, &mSearchedPolyCount, MAX_POLYS);
+    if (!(status & DT_SUCCESS))
+    {
+        printf("Cannot find path from start(%f, %f, %f) to end(%f, %f, %f)\n", start.x, start.y, start.z, end.x, end.y, end.z);
+        return status;
+    }
+    return status;
 }
