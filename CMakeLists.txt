@@ -38,6 +38,18 @@ include_directories(${JAVA_HOME}/include)
 include_directories(${JAVA_HOME}/include/darwin)
 
 set(RECAST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/recastnavigation)
+add_definitions(-DDT_POLYREF64=1)
+
+# include recast library
+include(GNUInstallDirs)
+add_subdirectory(${RECAST_DIR}/DebugUtils)
+add_subdirectory(${RECAST_DIR}/Detour)
+add_subdirectory(${RECAST_DIR}/DetourTileCache)
+add_subdirectory(${RECAST_DIR}/DetourCrowd)
+add_subdirectory(${RECAST_DIR}/Recast)
+add_subdirectory(${RECAST_DIR}/RecastDemo)
+
+
 include_directories(${RECAST_DIR}/Detour/Include)
 include_directories(${RECAST_DIR}/DetourTileCache/Include)
 include_directories(${RECAST_DIR}/Recast/Include)
@@ -62,8 +74,6 @@ if (APPLE)
 else ( )
     add_library(RecastJni SHARED ${SRC_LIST})
 endif ( )
-
-add_subdirectory(thirdparty/recastnavigation)
 
 add_dependencies(RecastJni Detour DetourTileCache Recast)
 target_link_libraries(RecastJni Detour DetourTileCache Recast)

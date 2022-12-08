@@ -12,7 +12,6 @@
 
 static const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
 static const int TILECACHESET_VERSION = 1;
-static const int MAX_CONVEXVOL_PTS = 12;
 static const int MAX_POLYS = 256;
 
 const char* sVolumeTag = "Volume:";
@@ -166,8 +165,8 @@ Navi::Navi()
 :mNavMesh(nullptr)
 ,mNavQuery(nullptr)
 ,mTileCache(nullptr)
-,mDefaultPolySize(2, 4, 2)
 ,mSearchedPolyCount(0)
+,mDefaultPolySize(2, 4, 2)
 {
     mAlloc = new LinearAllocator(32000);
     mComp = new FastLZCompressor;
@@ -372,14 +371,15 @@ void Navi::InitDoorPoly(VolumeDoor& door)
     float max[3] = {firstVert.x, firstVert.y, firstVert.z};
     for (int i = 0; i < door.verts.size(); ++i)
     {
-        dtVadd(centerPos,centerPos,(float*)&door.verts[i*3]);
-        dtVmin(min, (float*)&door.verts[i*3]);
-        dtVmax(max, (float*)&door.verts[i*3]);
+        dtVadd(centerPos,centerPos,(float*)&door.verts[i]);
+        dtVmin(min, (float*)&door.verts[i]);
+        dtVmax(max, (float*)&door.verts[i]);
     }
     dtVscale(centerPos, centerPos, 1.0f/door.verts.size());
     float halfExtents[3];
     for (int i = 0; i < 3; ++i)
         halfExtents[i] = (max[i] - min[i]) * 0.5f;
+    halfExtents[1] = 1.0f;
     dtQueryFilter filter;
     filter.setIncludeFlags(POLYFLAGS_DOOR);
 
