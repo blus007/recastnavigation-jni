@@ -6,13 +6,19 @@
 #include "DetourNavMeshQuery.h"
 #include "DetourTileCache.h"
 #include "DetourTileCacheBuilder.h"
+#include "Recast.h"
 #include "fastlz.h"
 #include "Filelist.h"
 #include "Navi.h"
 
+// check if is 64bit
+static int COMPILE_TEST[sizeof(void*) == 8 ? 1 : -1];
+
 static const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
 static const int TILECACHESET_VERSION = 1;
-static const int MAX_POLYS = 256;
+static const int MAX_POLYS = 1024;
+static const float STEP_SIZE = 0.5f;
+static const float SLOP = 0.01f;
 
 const char* sVolumeTag = "Volume:";
 const char* sAreaTag = "\tarea:";
@@ -161,11 +167,14 @@ MeshProcess::~MeshProcess()
     // Defined out of line to fix the weak v-tables warning
 }
 
+/////////////////////////////////////////////////////////////////
+// Navi
 Navi::Navi()
 :mNavMesh(nullptr)
 ,mNavQuery(nullptr)
 ,mTileCache(nullptr)
 ,mSearchedPolyCount(0)
+,mPathCount(0)
 ,mDefaultPolySize(2, 4, 2)
 {
     mAlloc = new LinearAllocator(32000);
@@ -177,6 +186,7 @@ Navi::Navi()
     mFilter->setExcludeFlags(POLYFLAGS_DOOR);
     
     mSearchPolys = new dtPolyRef[MAX_POLYS];
+    mPath = new Vector3[MAX_POLYS];
 }
 
 Navi::~Navi()
@@ -185,6 +195,7 @@ Navi::~Navi()
     dtFreeNavMesh(mNavMesh);
     dtFreeTileCache(mTileCache);
     
+    delete mPath;
     delete mSearchPolys;
     delete mFilter;
     
@@ -296,6 +307,8 @@ bool Navi::LoadMesh(const char* path)
 
 bool Navi::LoadDoors(const char* path)
 {
+    if (!mNavQuery || !mNavMesh)
+        return false;
     mDoors.clear();
     const int maxSize = 1024;
     char buffer1[maxSize];
@@ -343,6 +356,8 @@ bool Navi::LoadDoors(const char* path)
     if (door.id)
         mDoors.push_back(door);
     fclose(file);
+    
+    InitDoorsPoly();
     return true;
 }
 
@@ -458,6 +473,27 @@ void Navi::OpenAllDoors(const bool open)
     }
 }
 
+dtStatus Navi::AddObstacle(const Vector3& pos, const float radius, const float height, dtObstacleRef* result)
+{
+    if (!mTileCache)
+        return DT_FAILURE;
+    return mTileCache->addObstacle((float*)&pos, radius, height, result);
+}
+
+dtStatus Navi::RemoveObstacle(const dtObstacleRef ref)
+{
+    if (!mTileCache)
+        return DT_FAILURE;
+    return mTileCache->removeObstacle(ref);
+}
+
+dtStatus Navi::RefreshObstacle()
+{
+    if (!mTileCache)
+        return DT_FAILURE;
+    return mTileCache->update(0, mNavMesh);
+}
+
 int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)
 {
     if (!mNavMesh || !mNavQuery)
@@ -491,5 +527,19 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
         printf("Cannot find path from start(%f, %f, %f) to end(%f, %f, %f)\n", start.x, start.y, start.z, end.x, end.y, end.z);
         return status;
     }
+    mPathCount = 0;
+    if (mSearchedPolyCount)
+    {
+        // In case of partial path, make sure the end point is clamped to the last polygon.
+        float epos[3];
+        dtVcopy(epos, (float*)&end);
+        if (mSearchPolys[mSearchedPolyCount - 1] != endRef)
+            mNavQuery->closestPointOnPoly(mSearchPolys[mSearchedPolyCount - 1], (float*)&end, epos, nullptr);
+        
+        mNavQuery->findStraightPath((float*)&start, epos, mSearchPolys, mSearchedPolyCount,
+                                     (float*)mPath, nullptr, nullptr, &mPathCount, MAX_POLYS, 0);
+    }
+    if (mPathCount < 2)
+        return DT_FAILURE;
     return status;
 }

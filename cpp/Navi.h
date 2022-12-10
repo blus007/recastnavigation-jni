@@ -61,12 +61,15 @@ class Navi
     class dtQueryFilter* mFilter;
     dtPolyRef* mSearchPolys;
     int mSearchedPolyCount;
+    Vector3* mPath;
+    int mPathCount;
     
     Vector3 mDefaultPolySize;
     
     std::vector<VolumeDoor> mDoors;
     
     void InitDoorPoly(VolumeDoor& door);
+    void InitDoorsPoly();
     VolumeDoor* FindDoor(const int doorId);
     bool IsDoorOpen(VolumeDoor* door);
     void OpenDoor(VolumeDoor* door, const bool open);
@@ -75,9 +78,15 @@ public:
     Navi();
     ~Navi();
     
+    inline void SetDefaultPolySize(float x, float y, float z)
+    {
+        mDefaultPolySize.x = x;
+        mDefaultPolySize.y = y;
+        mDefaultPolySize.z = z;
+    }
+    
     bool LoadMesh(const char* path);
     bool LoadDoors(const char* path);
-    void InitDoorsPoly();
     
     inline bool IsDoorExist(const int doorId)
     {
@@ -95,9 +104,32 @@ public:
         OpenDoor(door, open);
     }
     void OpenAllDoors(const bool open);
+    dtStatus AddObstacle(const Vector3& pos, const float radius, const float height, dtObstacleRef* result);
+    dtStatus RemoveObstacle(const dtObstacleRef ref);
+    dtStatus RefreshObstacle();
+    inline int GetMaxObstacleReqCount()
+    {
+        if (!mTileCache)
+            return 0;
+        return mTileCache->getMaxObstacleReqCount();
+    }
+    inline int GetAddedObstacleReqCount()
+    {
+        if (!mTileCache)
+            return 0;
+        return mTileCache->getAddedObstacleReqCount();
+    }
+    inline int GetObstacleReqRemainCount()
+    {
+        if (!mTileCache)
+            return 0;
+        return mTileCache->getObstacleReqRemainCount();
+    }
     int FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize);
     inline int FindPath(const Vector3& start, const Vector3& end)
     {
         return FindPath(start, end, mDefaultPolySize);
     }
+    inline const int GetPathCount() { return mPathCount; }
+    inline const Vector3* GetPath() { return mPath; }
 };
