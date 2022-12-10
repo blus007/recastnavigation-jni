@@ -46,6 +46,27 @@ public class Main {
             }
         }
 
+        //    obstacle
+        navi.closeAllDoorsPoly();
+        int ref = navi.addObstacle(53.742393f, -2.262424f, 12.016539f, 1.0f, 2.0f);
+        navi.refreshObstacle();
+        System.out.println(String.format("add obstacle success = %s\n", ref != 0 ? "success" : "fail"));
+        navi.initDoorsPoly();
+        navi.recoverAllDoorsPoly();
+        // find path pass by obstacle
+        status = navi.findPath(54.9729767f, -2.37854576f, 4.9592514f, 49.1615448f, -2.33363724f, 18.9671612f, 2, 4, 2);
+        success = Navi.isSuccess(status);
+        System.out.println(String.format("find path open door add obstacle success = %s", success ? "success" : "fail"));
+        if (success) {
+            final int posSize = navi.getPosSize();
+            System.out.println(String.format("find path count = %d", posSize));
+            final float[] posArray = navi.getPosArray();
+            for (int i = 0; i < posSize; ++i) {
+                System.out.println(String.format("pos = (%f,%f,%f)", 
+                    posArray[i * 3], posArray[i * 3 + 1], posArray[i * 3 + 2]));
+            }
+        }
+
         navi.destroy();
     }
 }

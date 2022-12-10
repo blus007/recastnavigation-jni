@@ -342,6 +342,7 @@ bool Navi::LoadDoors(const char* path)
                 mDoors.push_back(door);
             snprintf(scanFormat, scanFormatSize, "%s%%d", sVolumeTag);
             sscanf(str, scanFormat, &door.id);
+            door.open = false;
             vertIndex = 0;
             continue;
         }
@@ -429,17 +430,7 @@ bool Navi::IsDoorOpen(VolumeDoor* door)
         printf("Cannot find door\n");
         return false;
     }
-    const dtMeshTile* tile = nullptr;
-    const dtPoly* cpoly = nullptr;
-    dtPolyRef polyRef = door->polyRefs[0];
-    dtStatus status = mNavMesh->getTileAndPolyByRef(polyRef, &tile, &cpoly);
-    if (status != DT_SUCCESS)
-    {
-        printf("Cannot find door by id %d\n", door->id);
-        return false;
-    }
-    dtPoly* poly = (dtPoly*)cpoly;
-    return !(poly->flags & POLYFLAGS_DOOR);
+    return door->open;
 }
 
 void Navi::OpenDoor(VolumeDoor* door, const bool open)
@@ -449,6 +440,14 @@ void Navi::OpenDoor(VolumeDoor* door, const bool open)
         printf("Navi mesh or door is not inited\n");
         return;
     }
+    if (door->open == open)
+        return;
+    door->open = open;
+    OpenDoorPoly(door, open);
+}
+
+void Navi::OpenDoorPoly(VolumeDoor *door, const bool open)
+{
     const dtMeshTile* tile = nullptr;
     const dtPoly* cpoly = nullptr;
     for (int i = 0; i < door->polyRefs.size(); ++i)
@@ -462,14 +461,6 @@ void Navi::OpenDoor(VolumeDoor* door, const bool open)
             poly->flags &= ~POLYFLAGS_DOOR;
         else
             poly->flags |= POLYFLAGS_DOOR;
-    }
-}
-
-void Navi::OpenAllDoors(const bool open)
-{
-    for (int i = 0; i < mDoors.size(); ++i)
-    {
-        OpenDoor(&mDoors[i], open);
     }
 }
 
@@ -491,7 +482,14 @@ dtStatus Navi::RefreshObstacle()
 {
     if (!mTileCache)
         return DT_FAILURE;
-    return mTileCache->update(0, mNavMesh);
+    bool finish = false;
+    while (!finish)
+    {
+        int status = mTileCache->update(0, mNavMesh, &finish);
+        if (!dtStatusSucceed(status))
+            return DT_FAILURE;
+    }
+    return DT_SUCCESS;
 }
 
 int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)

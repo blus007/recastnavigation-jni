@@ -46,6 +46,7 @@ struct VolumeDoor
     int id;
     std::vector<Vector3> verts;
     std::vector<dtPolyRef> polyRefs;
+    bool open;
 };
 
 class Navi
@@ -69,10 +70,10 @@ class Navi
     std::vector<VolumeDoor> mDoors;
     
     void InitDoorPoly(VolumeDoor& door);
-    void InitDoorsPoly();
     VolumeDoor* FindDoor(const int doorId);
     bool IsDoorOpen(VolumeDoor* door);
     void OpenDoor(VolumeDoor* door, const bool open);
+    void OpenDoorPoly(VolumeDoor* door, const bool open);
     
 public:
     Navi();
@@ -88,6 +89,7 @@ public:
     bool LoadMesh(const char* path);
     bool LoadDoors(const char* path);
     
+    void InitDoorsPoly();
     inline bool IsDoorExist(const int doorId)
     {
         VolumeDoor* door = FindDoor(doorId);
@@ -103,7 +105,29 @@ public:
         VolumeDoor* door = FindDoor(doorId);
         OpenDoor(door, open);
     }
-    void OpenAllDoors(const bool open);
+    inline void OpenAllDoors(const bool open)
+    {
+        for (int i = 0; i < mDoors.size(); ++i)
+        {
+            OpenDoor(&mDoors[i], open);
+        }
+    }
+    inline void CloseAllDoorsPoly()
+    {
+        for (int i = 0; i < mDoors.size(); ++i)
+        {
+            OpenDoorPoly(&mDoors[i], false);
+        }
+    }
+    inline void RecoverAllDoorsPoly()
+    {
+        for (int i = 0; i < mDoors.size(); ++i)
+        {
+            if (!mDoors[i].open)
+                continue;
+            OpenDoorPoly(&mDoors[i], mDoors[i].open);
+        }
+    }
     dtStatus AddObstacle(const Vector3& pos, const float radius, const float height, dtObstacleRef* result);
     dtStatus RemoveObstacle(const dtObstacleRef ref);
     dtStatus RefreshObstacle();

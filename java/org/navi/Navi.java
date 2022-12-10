@@ -68,6 +68,13 @@ public class Navi {
         return loadDoorsNative(naviPtr, filePath);
     }
 
+    private native void initDoorsPolyNative(long ptr);
+    public void initDoorsPoly() {
+        if (naviPtr == 0)
+            return;
+        initDoorsPolyNative(naviPtr);
+    }
+
     private native boolean isDoorExistNative(long ptr, int doorId);
     public boolean isDoorExist(int doorId) {
         if (naviPtr == 0)
@@ -95,6 +102,20 @@ public class Navi {
             return;
         openAllDoorsNative(naviPtr, open);
     }
+
+    private native void closeAllDoorsPolyNative(long ptr);
+    public void closeAllDoorsPoly() {
+        if (naviPtr == 0)
+            return;
+        closeAllDoorsPolyNative(naviPtr);
+    }
+
+    private native void recoverAllDoorsPolyNative(long ptr);
+    public void recoverAllDoorsPoly() {
+        if (naviPtr == 0)
+            return;
+        recoverAllDoorsPolyNative(naviPtr);
+    }
         
     private native int addObstacleNative(long ptr,
          float posX, float posY, float posZ,
@@ -104,6 +125,12 @@ public class Navi {
         if (naviPtr == 0)
             return 0;
         return addObstacleNative(naviPtr, posX, posY, posZ, radius, height);
+    }
+    public int addObstacleOffset(float posX, float posY, float posZ,
+         float radius, float height) {
+        if (naviPtr == 0)
+            return 0;
+        return addObstacleNative(naviPtr, posX, posY - 1.0f, posZ, radius, height + 1.0f);
     }
         
     private native boolean removeObstacleNative(long ptr, int obstacleRef);

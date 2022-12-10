@@ -106,6 +106,15 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadDoorsNative
     free(path);
     return success;
 }
+    
+JNIEXPORT void JNICALL Java_org_navi_Navi_initDoorsPolyNative
+    (JNIEnv *env, jobject self, jlong ptr)
+{
+    if (!ptr)
+        return;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    navi->InitDoorsPoly();
+}
 
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_isDoorExistNative
     (JNIEnv *env, jobject self, jlong ptr, jint doorId)
@@ -143,6 +152,24 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_openAllDoorsNative
     navi->OpenAllDoors(open);
 }
     
+JNIEXPORT void JNICALL Java_org_navi_Navi_closeAllDoorsPolyNative
+    (JNIEnv *env, jobject self, jlong ptr)
+{
+    if (!ptr)
+        return;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    navi->CloseAllDoorsPoly();
+}
+    
+JNIEXPORT void JNICALL Java_org_navi_Navi_recoverAllDoorsPolyNative
+    (JNIEnv *env, jobject self, jlong ptr)
+{
+    if (!ptr)
+        return;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    navi->RecoverAllDoorsPoly();
+}
+    
 JNIEXPORT jint JNICALL Java_org_navi_Navi_addObstacleNative
     (JNIEnv *env, jobject self, jlong ptr,
      jfloat posX, jfloat posY, jfloat posZ,
@@ -151,9 +178,9 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_addObstacleNative
     if (!ptr)
         return 0;
     Navi* navi = (Navi*)Long2Ptr(ptr);
-    Vector3 pos(posX, posY - 1.0f, posZ);
+    Vector3 pos(posX, posY, posZ);
     dtObstacleRef ref = 0;
-    int result = navi->AddObstacle(pos, radius, height + 1.0f, &ref);
+    int result = navi->AddObstacle(pos, radius, height, &ref);
     if (!dtStatusSucceed(result))
         return 0;
     return ref;
