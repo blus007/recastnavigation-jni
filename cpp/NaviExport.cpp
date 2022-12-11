@@ -55,17 +55,26 @@ inline void* Long2Ptr(long l)
 extern "C" {
 #endif
     
-JNIEXPORT jlong JNICALL Java_org_navi_Navi_createNative
-    (JNIEnv *env, jobject self)
+JNIEXPORT jint JNICALL Java_org_navi_Navi_getMaxPosSizeNative
+    (JNIEnv *env, jobject obj)
 {
+    //printf("Java_org_navi_Navi_getMaxPosSizeNative:env=%p obj=%p\n", env, obj);
+    return MAX_POLYS;
+}
+    
+JNIEXPORT jlong JNICALL Java_org_navi_Navi_createNative
+    (JNIEnv *env, jobject obj)
+{
+    //printf("Java_org_navi_Navi_createNative:env=%p obj=%p\n", env, obj);
     Navi* navi = new Navi;
     jlong ptr = Ptr2Long(navi);
     return ptr;
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_destroyNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
+    //printf("Java_org_navi_Navi_destroyNative:env=%p obj=%p\n", env, obj);
     if (!ptr)
         return;
     Navi* navi = (Navi*)Long2Ptr(ptr);
@@ -73,8 +82,9 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_destroyNative
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_setDefaultPolySizeNative
-    (JNIEnv *env, jobject self, jlong ptr, jfloat x, jfloat y, jfloat z)
+    (JNIEnv *env, jobject obj, jlong ptr, jfloat x, jfloat y, jfloat z)
 {
+    //printf("Java_org_navi_Navi_destroyNative:env=%p obj=%p\n", env, obj);
     if (!ptr)
         return;
     Navi* navi = (Navi*)Long2Ptr(ptr);
@@ -82,7 +92,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_setDefaultPolySizeNative
 }
 
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadMeshNative
-  (JNIEnv *env, jobject self, jlong ptr, jstring filePath)
+  (JNIEnv *env, jobject obj, jlong ptr, jstring filePath)
 {
     if (!ptr)
         return false;
@@ -95,7 +105,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadMeshNative
 }
     
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadDoorsNative
-    (JNIEnv *env, jobject self, jlong ptr, jstring filePath)
+    (JNIEnv *env, jobject obj, jlong ptr, jstring filePath)
 {
     if (!ptr)
         return false;
@@ -108,7 +118,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadDoorsNative
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_initDoorsPolyNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return;
@@ -117,7 +127,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_initDoorsPolyNative
 }
 
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_isDoorExistNative
-    (JNIEnv *env, jobject self, jlong ptr, jint doorId)
+    (JNIEnv *env, jobject obj, jlong ptr, jint doorId)
 {
     if (!ptr)
         return false;
@@ -126,7 +136,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_isDoorExistNative
 }
     
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_isDoorOpenNative
-    (JNIEnv *env, jobject self, jlong ptr, jint doorId)
+    (JNIEnv *env, jobject obj, jlong ptr, jint doorId)
 {
     if (!ptr)
         return false;
@@ -135,7 +145,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_isDoorOpenNative
 }
 
 JNIEXPORT void JNICALL Java_org_navi_Navi_openDoorNative
-    (JNIEnv *env, jobject self, jlong ptr, jint doorId, jboolean open)
+    (JNIEnv *env, jobject obj, jlong ptr, jint doorId, jboolean open)
 {
     if (!ptr)
         return;
@@ -144,7 +154,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_openDoorNative
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_openAllDoorsNative
-    (JNIEnv *env, jobject self, jlong ptr, jboolean open)
+    (JNIEnv *env, jobject obj, jlong ptr, jboolean open)
 {
     if (!ptr)
         return;
@@ -153,7 +163,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_openAllDoorsNative
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_closeAllDoorsPolyNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return;
@@ -162,7 +172,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_closeAllDoorsPolyNative
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_recoverAllDoorsPolyNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return;
@@ -171,7 +181,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_recoverAllDoorsPolyNative
 }
     
 JNIEXPORT jint JNICALL Java_org_navi_Navi_addObstacleNative
-    (JNIEnv *env, jobject self, jlong ptr,
+    (JNIEnv *env, jobject obj, jlong ptr,
      jfloat posX, jfloat posY, jfloat posZ,
      jfloat radius, jfloat height)
 {
@@ -187,7 +197,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_addObstacleNative
 }
     
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_removeObstacleNative
-    (JNIEnv *env, jobject self, jlong ptr, jint obstacleRef)
+    (JNIEnv *env, jobject obj, jlong ptr, jint obstacleRef)
 {
     if (!ptr)
         return false;
@@ -199,7 +209,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_removeObstacleNative
 }
     
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_refreshObstacleNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return false;
@@ -211,7 +221,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_refreshObstacleNative
 }
     
 JNIEXPORT jint JNICALL Java_org_navi_Navi_getMaxObstacleReqCountNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return 0;
@@ -220,7 +230,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_getMaxObstacleReqCountNative
 }
 
 JNIEXPORT jint JNICALL Java_org_navi_Navi_getAddedObstacleReqCountNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return 0;
@@ -229,7 +239,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_getAddedObstacleReqCountNative
 }
 
 JNIEXPORT jint JNICALL Java_org_navi_Navi_getObstacleReqRemainCountNative
-    (JNIEnv *env, jobject self, jlong ptr)
+    (JNIEnv *env, jobject obj, jlong ptr)
 {
     if (!ptr)
         return 0;
@@ -238,7 +248,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_getObstacleReqRemainCountNative
 }
 
 JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathNative
-    (JNIEnv *env, jobject self, jlong ptr, jfloatArray posArray, jintArray posSize,
+    (JNIEnv *env, jobject obj, jlong ptr, jfloatArray posArray, jintArray posSize,
      jfloat startX, jfloat startY, jfloat startZ,
      jfloat endX, jfloat endY, jfloat endZ,
      jfloat sizeX, jfloat sizeY, jfloat sizeZ)
@@ -262,7 +272,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathNative
 }
     
 JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathDefaultNative
-    (JNIEnv *env, jobject self, jlong ptr, jfloatArray posArray, jintArray posSize,
+    (JNIEnv *env, jobject obj, jlong ptr, jfloatArray posArray, jintArray posSize,
      jfloat startX, jfloat startY, jfloat startZ,
      jfloat endX, jfloat endY, jfloat endZ)
 {

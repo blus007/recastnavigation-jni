@@ -3,6 +3,7 @@ package org.navi;
 public class Navi {
     static {
         System.loadLibrary("RecastJni");
+        //System.out.println(String.format("getMaxPosSizeNative=%d", getMaxPosSizeNative()));
     }
     public static final int FAILURE = 1 << 31; // Operation failed.
     public static final int SUCCESS = 1 << 30; // Operation succeed.
@@ -15,8 +16,10 @@ public class Navi {
         return (status & SUCCESS) != 0;
     }
 
+    private static native int getMaxPosSizeNative();
+
     private long naviPtr = 0;
-    private static final int MAX_POS_SIZE = 1024;
+    private static final int MAX_POS_SIZE = getMaxPosSizeNative();
     private float[] posArray = new float[MAX_POS_SIZE * 3];
     private int[] posSize = new int[1];
 

@@ -12,13 +12,11 @@
 #include "Navi.h"
 
 // check if is 64bit
-static int COMPILE_TEST[sizeof(void*) == 8 ? 1 : -1];
+int COMPILE_TEST[sizeof(void*) == 8 ? 1 : -1];
 
-static const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
-static const int TILECACHESET_VERSION = 1;
-static const int MAX_POLYS = 1024;
-static const float STEP_SIZE = 0.5f;
-static const float SLOP = 0.01f;
+const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
+const int TILECACHESET_VERSION = 1;
+const int MAX_POLYS = 1024;
 
 const char* sVolumeTag = "Volume:";
 const char* sAreaTag = "\tarea:";

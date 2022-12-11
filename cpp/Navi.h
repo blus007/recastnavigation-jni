@@ -22,6 +22,8 @@ enum PolyFlags
     POLYFLAGS_ALL           = 0xffff    // All abilities.
 };
 
+extern const int MAX_POLYS;
+
 struct Vector3
 {
     float x;
