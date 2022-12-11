@@ -9,7 +9,8 @@ enum PolyAreas
     POLYAREA_ROAD,
     POLYAREA_DOOR,
     POLYAREA_GRASS,
-    POLYAREA_JUMP
+    POLYAREA_JUMP,
+    POLYAREA_REGION,
 };
 
 enum PolyFlags
