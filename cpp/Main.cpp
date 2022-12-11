@@ -11,7 +11,7 @@ int main(int argc, char* argv[])
     Navi navi;
     int success = navi.LoadMesh(RECAST_BIN"/Output/nav_test_obs_navi.bin");
     printf("load navi success = %d\n", success);
-    success = navi.LoadDoors(RECAST_BIN"/Output/nav_test.volume");
+    success = navi.LoadDoors(RECAST_BIN"/Output/nav_test.door");
     printf("load door success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
     
     Vector3 start(54.9729767f, -2.37854576f, 4.9592514f);
