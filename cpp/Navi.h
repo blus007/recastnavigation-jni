@@ -44,12 +44,21 @@ struct Vector3
     {}
 };
 
-struct VolumeDoor
+struct GameVolume
 {
     int id;
     std::vector<Vector3> verts;
+};
+
+struct VolumeDoor : public GameVolume
+{
     std::vector<dtPolyRef> polyRefs;
     bool open;
+};
+
+struct VolumeRegion : public GameVolume
+{
+    
 };
 
 class Navi
@@ -71,12 +80,18 @@ class Navi
     Vector3 mDefaultPolySize;
     
     std::vector<VolumeDoor> mDoors;
+    std::vector<VolumeRegion> mRegions;
+    
+    void VolumesClear(void* volumes);
+    GameVolume* NewVolume(void* volumes);
+    bool LoadVolumes(const char* path, void* volumes);
     
     void InitDoorPoly(VolumeDoor& door);
     VolumeDoor* FindDoor(const int doorId);
     bool IsDoorOpen(VolumeDoor* door);
     void OpenDoor(VolumeDoor* door, const bool open);
     void OpenDoorPoly(VolumeDoor* door, const bool open);
+    bool PointInRegion(float x, float z, const VolumeRegion& region);
     
 public:
     Navi();
@@ -91,6 +106,7 @@ public:
     
     bool LoadMesh(const char* path);
     bool LoadDoors(const char* path);
+    bool LoadRegions(const char* path);
     
     void InitDoorsPoly();
     inline bool IsDoorExist(const int doorId)

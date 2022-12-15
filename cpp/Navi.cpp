@@ -303,11 +303,45 @@ bool Navi::LoadMesh(const char* path)
     return true;
 }
 
-bool Navi::LoadDoors(const char* path)
+void Navi::VolumesClear(void* volumes)
+{
+    if (volumes == &mDoors)
+    {
+        mDoors.clear();
+        return;
+    }
+    if (volumes == &mRegions)
+    {
+        mRegions.clear();
+        return;
+    }
+}
+
+GameVolume* Navi::NewVolume(void* volumes)
+{
+    if (volumes == &mDoors)
+    {
+        static VolumeDoor door;
+        door.id = 0;
+        door.open = false;
+        mDoors.push_back(door);
+        return &mDoors.back();
+    }
+    if (volumes == &mRegions)
+    {
+        static VolumeRegion region;
+        region.id = 0;
+        mRegions.push_back(region);
+        return &mRegions.back();
+    }
+    return nullptr;
+}
+
+bool Navi::LoadVolumes(const char* path, void* volumes)
 {
     if (!mNavQuery || !mNavMesh)
         return false;
-    mDoors.clear();
+    VolumesClear(volumes);
     const int maxSize = 1024;
     char buffer1[maxSize];
     char buffer2[maxSize];
@@ -319,13 +353,12 @@ bool Navi::LoadDoors(const char* path)
     int readCount = 0;
     bool readEnd = false;
     
-    Vector3 vert;
-    VolumeDoor door;
-    door.id = 0;
-
-    int vertIndex = 0;
+    GameVolume* volume = nullptr;
+    
     const int volumeTagSize = strlen(sVolumeTag);
+    const int nvertsTagSize = strlen(sNvertsTag);
     const int vertTagSize = strlen(sVertTag);
+    int readVerts = 0;
     const int scanFormatSize = 256;
     char scanFormat[scanFormatSize];
     do
@@ -336,28 +369,46 @@ bool Navi::LoadDoors(const char* path)
             break;
         if (strncmp(str, sVolumeTag, volumeTagSize) == 0)
         {
-            if (door.id)
-                mDoors.push_back(door);
+            volume = NewVolume(volumes);
             snprintf(scanFormat, scanFormatSize, "%s%%d", sVolumeTag);
-            sscanf(str, scanFormat, &door.id);
-            door.open = false;
-            vertIndex = 0;
+            sscanf(str, scanFormat, &volume->id);
+            continue;
+        }
+        if (strncmp(str, sNvertsTag, nvertsTagSize) == 0)
+        {
+            snprintf(scanFormat, scanFormatSize, "%s%%d", sNvertsTag);
+            int vertCount = 0;
+            sscanf(str, scanFormat, &vertCount);
+            volume->verts.resize(vertCount);
+            readVerts = 0;
             continue;
         }
         if (strncmp(str, sVertTag, vertTagSize) == 0)
         {
+            if (readVerts >= volume->verts.size())
+                continue;
             snprintf(scanFormat, scanFormatSize, "%sx:%%f,y:%%f,z:%%f", sVertTag);
+            Vector3& vert = volume->verts[readVerts++];
             sscanf(str, scanFormat, &vert.x, &vert.y, &vert.z);
-            door.verts.push_back(vert);
             continue;
         }
     } while (true);
-    if (door.id)
-        mDoors.push_back(door);
     fclose(file);
+    return true;
+}
+
+bool Navi::LoadDoors(const char* path)
+{
+    if (!LoadVolumes(path, &mDoors))
+        return false;
     
     InitDoorsPoly();
     return true;
+}
+
+bool Navi::LoadRegions(const char* path)
+{
+    return LoadVolumes(path, &mRegions);
 }
 
 void Navi::InitDoorsPoly()
@@ -538,4 +589,22 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
     if (mPathCount < 2)
         return DT_FAILURE;
     return status;
+}
+
+bool Navi::PointInRegion(float x, float z, const VolumeRegion& region)
+{
+    const int vertSize = (const int)region.verts.size();
+    for (int i = 0, j = vertSize - 1; i < vertSize; j = i++)
+    {
+        const Vector3& a = region.verts[j];
+        const Vector3& b = region.verts[i];
+        const float cx = x - a.x;
+        const float cz = z - a.z;
+        const float bx = b.x - a.x;
+        const float bz = b.z - a.z;
+        const float result = cz * bx - cx * bz;
+        if (result <= 0)
+            return false;
+    }
+    return true;
 }

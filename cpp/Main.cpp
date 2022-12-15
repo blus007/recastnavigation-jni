@@ -13,6 +13,8 @@ int main(int argc, char* argv[])
     printf("load navi success = %d\n", success);
     success = navi.LoadDoors(RECAST_BIN"/Output/nav_test.door");
     printf("load door success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
+    success = navi.LoadRegions(RECAST_BIN"/Output/nav_test.region");
+    printf("load region success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
     
     Vector3 start(54.9729767f, -2.37854576f, 4.9592514f);
     Vector3 end(49.1615448f, -2.33363724f, 18.9671612f);
