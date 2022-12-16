@@ -24,6 +24,8 @@ const char* sHminTag = "\thmin:";
 const char* sHmaxTag = "\thmax:";
 const char* sNvertsTag = "\tnverts:";
 const char* sVertTag = "\t\tvert:";
+const char* sNlinkTag = "\tnlink:";
+const char* sLinkTag = "\t\tlink:";
 
 struct TileCacheSetHeader
 {
@@ -337,6 +339,27 @@ GameVolume* Navi::NewVolume(void* volumes)
     return nullptr;
 }
 
+void Navi::ResizeLinkCount(void* volumes, void* volume, int count)
+{
+    if (volumes == &mRegions)
+    {
+        VolumeRegion* region = (VolumeRegion*)volume;
+        region->links.resize(count);
+    }
+}
+
+int* Navi::GetLinkPtr(void* volumes, void* volume, int index)
+{
+    if (volumes == &mRegions)
+    {
+        VolumeRegion* region = (VolumeRegion*)volume;
+        if (index < 0 || index >= region->links.size())
+            return nullptr;
+        return &region->links.front() + index;
+    }
+    return nullptr;
+}
+
 bool Navi::LoadVolumes(const char* path, void* volumes)
 {
     if (!mNavQuery || !mNavMesh)
@@ -358,7 +381,9 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
     const int volumeTagSize = strlen(sVolumeTag);
     const int nvertsTagSize = strlen(sNvertsTag);
     const int vertTagSize = strlen(sVertTag);
-    int readVerts = 0;
+    const int nlinkTagSize = strlen(sNlinkTag);
+    const int linkTagSize = strlen(sLinkTag);
+    int arrayIndex = 0;
     const int scanFormatSize = 256;
     char scanFormat[scanFormatSize];
     do
@@ -380,16 +405,34 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
             int vertCount = 0;
             sscanf(str, scanFormat, &vertCount);
             volume->verts.resize(vertCount);
-            readVerts = 0;
+            arrayIndex = 0;
             continue;
         }
         if (strncmp(str, sVertTag, vertTagSize) == 0)
         {
-            if (readVerts >= volume->verts.size())
+            if (arrayIndex >= volume->verts.size())
                 continue;
             snprintf(scanFormat, scanFormatSize, "%sx:%%f,y:%%f,z:%%f", sVertTag);
-            Vector3& vert = volume->verts[readVerts++];
+            Vector3& vert = volume->verts[arrayIndex++];
             sscanf(str, scanFormat, &vert.x, &vert.y, &vert.z);
+            continue;
+        }
+        if (strncmp(str, sNlinkTag, nlinkTagSize) == 0)
+        {
+            snprintf(scanFormat, scanFormatSize, "%s%%d", sNlinkTag);
+            int count = 0;
+            sscanf(str, scanFormat, &count);
+            ResizeLinkCount(volumes, volume, count);
+            arrayIndex = 0;
+            continue;
+        }
+        if (strncmp(str, sLinkTag, linkTagSize) == 0)
+        {
+            int* linkPtr = GetLinkPtr(volumes, volume, arrayIndex++);
+            if (!linkPtr)
+                continue;
+            snprintf(scanFormat, scanFormatSize, "%s%%d", sLinkTag);
+            sscanf(str, scanFormat, linkPtr);
             continue;
         }
     } while (true);

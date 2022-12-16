@@ -58,7 +58,7 @@ struct VolumeDoor : public GameVolume
 
 struct VolumeRegion : public GameVolume
 {
-    
+    std::vector<int> links;
 };
 
 class Navi
@@ -84,6 +84,8 @@ class Navi
     
     void VolumesClear(void* volumes);
     GameVolume* NewVolume(void* volumes);
+    void ResizeLinkCount(void* volumes, void* volume, int count);
+    int* GetLinkPtr(void* volumes, void* volume, int index);
     bool LoadVolumes(const char* path, void* volumes);
     
     void InitDoorPoly(VolumeDoor& door);
