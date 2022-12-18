@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <map>
+#include "QuadTree.h"
 
 enum PolyAreas
 {
@@ -59,7 +61,33 @@ struct VolumeDoor : public GameVolume
 struct VolumeRegion : public GameVolume
 {
     std::vector<int> links;
+    Recast::AABB aabb;
+    
+    const Recast::AABB* GetAABB() const
+    {
+        return &aabb;
+    }
+    
+    bool IsContain(float x, float y) const;
 };
+
+inline int buildLinkId(int volumeId, int doorId)
+{
+    return volumeId | (doorId << 16);
+}
+
+inline int getLinkVolumeId(int linkId)
+{
+    return linkId & 0x0000ffff;
+}
+
+inline int getLinkDoorId(int linkId)
+{
+    return (linkId >> 16) & 0x0000ffff;
+}
+
+typedef Recast::QuadTree<VolumeRegion> RegionTree;
+typedef Recast::QuadTree<VolumeRegion>::Element RegionElement;
 
 class Navi
 {
@@ -80,12 +108,18 @@ class Navi
     Vector3 mDefaultPolySize;
     
     std::vector<VolumeDoor> mDoors;
-    std::vector<VolumeRegion> mRegions;
+    std::map<int, VolumeDoor*> mDoorMap;
+    
+    std::vector<VolumeRegion*> mRegions;
+    RegionTree mRegionTree;
+    std::map<int, RegionElement*> mRegionElemMap;
     
     void VolumesClear(void* volumes);
     GameVolume* NewVolume(void* volumes);
     void ResizeLinkCount(void* volumes, void* volume, int count);
     int* GetLinkPtr(void* volumes, void* volume, int index);
+    void SetAABB(void* volumes, void* volume, float x, float y, float width, float height);
+    void AddQuadNode(void* volumes, void* volume, int deep);
     bool LoadVolumes(const char* path, void* volumes);
     
     void InitDoorPoly(VolumeDoor& door);
@@ -110,6 +144,31 @@ public:
     bool LoadDoors(const char* path);
     bool LoadRegions(const char* path);
     
+    inline RegionElement* FindRegionElem(int id)
+    {
+        auto it = mRegionElemMap.find(id);
+        if (it == mRegionElemMap.end())
+            return nullptr;
+        return it->second;
+    }
+    inline VolumeRegion* FindRegion(int id)
+    {
+        RegionElement* elem = FindRegionElem(id);
+        if (!elem)
+            return nullptr;
+        return elem->GetValue();
+    }
+    inline int GetRegionId(const Vector3& pos)
+    {
+        if (!mRegionTree.IsInited())
+            return 0;
+        std::vector<VolumeRegion*> output;
+        bool found = mRegionTree.Intersect(pos.x, pos.z, output, true);
+        if (!found)
+            return 0;
+        VolumeRegion* region = output[0];
+        return region->id;
+    }
     void InitDoorsPoly();
     inline bool IsDoorExist(const int doorId)
     {
@@ -170,6 +229,7 @@ public:
             return 0;
         return mTileCache->getObstacleReqRemainCount();
     }
+    bool IsPassable(const Vector3& start, const Vector3& end);
     int FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize);
     inline int FindPath(const Vector3& start, const Vector3& end)
     {

@@ -9,12 +9,19 @@ public class Main {
 
         boolean success = navi.loadMesh("../thirdparty/recastnavigation/RecastDemo/Bin/Output/nav_test_obs_navi.bin");
         System.out.println(String.format("load mesh %s", success ? "success" : "fail"));
-        success = navi.loadDoors("../thirdparty/recastnavigation/RecastDemo/Bin/Output/nav_test.volume");
+        success = navi.loadDoors("../thirdparty/recastnavigation/RecastDemo/Bin/Output/nav_test.door");
         System.out.println(String.format("load doors %s", success ? "success" : "fail"));
+        success = navi.loadRegions("../thirdparty/recastnavigation/RecastDemo/Bin/Output/nav_test.region");
+        System.out.println(String.format("load regions %s", success ? "success" : "fail"));
 
         System.out.println(String.format("getMaxObstacleReqCount %d", navi.getMaxObstacleReqCount()));
         System.out.println(String.format("getAddedObstacleReqCount %d", navi.getAddedObstacleReqCount()));
         System.out.println(String.format("getObstacleReqRemainCount %d", navi.getObstacleReqRemainCount()));
+
+        int regionId = navi.getRegionId(54.9729767f, 4.9592514f);
+        System.out.println(String.format("start region id %d", regionId));
+        regionId = navi.getRegionId(49.1615448f, 18.9671612f);
+        System.out.println(String.format("end region id %d", regionId));
 
         // Vector3 start(54.9729767f, -2.37854576f, 4.9592514f);
         // Vector3 end(49.1615448f, -2.33363724f, 18.9671612f);

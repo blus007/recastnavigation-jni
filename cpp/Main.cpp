@@ -3,10 +3,98 @@
 #include "DetourNavMesh.h"
 #include "DetourTileCache.h"
 #include "Navi.h"
+#include "Circle.h"
+
+struct TestStruct
+{
+    Recast::AABB aabb;
+    Recast::Circle circle;
+    
+    void CalcAABB()
+    {
+        aabb.SetXY(circle.GetX() - circle.GetRadius(), circle.GetY() - circle.GetRadius());
+        float size = circle.GetRadius() * 2;
+        aabb.SetSize(size, size);
+    }
+    
+    Recast::Circle* GetCircle()
+    {
+        return &circle;
+    }
+    
+    const Recast::Circle* GetCircle() const
+    {
+        return &circle;
+    }
+    
+    const Recast::AABB* GetAABB() const
+    {
+        return &aabb;
+    }
+    
+    bool IsContain(float x, float y) const
+    {
+        return circle.IsContain(x, y);
+    }
+    
+    bool Intersect(const Recast::Circle& other) const
+    {
+        return circle.Intersect(other);
+    }
+};
+
 
 int main(int argc, char* argv[])
 {
     printf("Main\n");
+    {
+        Recast::QuadTree<VolumeRegion>* tree = new Recast::QuadTree<VolumeRegion>(0, 0, 1000, 1000);
+        VolumeRegion rs[100];
+        Recast::QuadTree<VolumeRegion>::Element* el[100];
+        for (int i = 0; i < 10; ++i)
+        {
+            for (int j = 0; j < 10; ++j)
+            {
+                int index = i * 10 + j;
+                VolumeRegion* r = &rs[index];
+                r->aabb.SetXY(j * 100, i * 100);
+                r->aabb.SetSize(100, 100);
+                auto* elem = tree->Add(r);
+                el[index] = elem;
+            }
+        }
+//        rs[99].aabb.SetXY(0, 0);
+//        tree->Refresh(el[99]);
+        std::vector<VolumeRegion*> output;
+        tree->Intersect(1, 1, output);
+        delete tree;
+    }
+    {
+        Recast::QuadTree<TestStruct>* tree = new Recast::QuadTree<TestStruct>(0, 0, 1000, 1000, 8);
+        TestStruct ts[100];
+        Recast::QuadTree<TestStruct>::Element* el[100];
+        for (int i = 0; i < 4; ++i)
+        {
+            for (int j = 0; j < 4; ++j)
+            {
+                int index = i * 4 + j;
+                TestStruct* t = &ts[index];
+                t->GetCircle()->SetXY(100, 100);
+                t->GetCircle()->SetRadius(100);
+                t->CalcAABB();
+                auto* elem = tree->Add(t);
+                el[index] = elem;
+            }
+        }
+        ts[15].GetCircle()->SetRadius(10);
+        ts[15].CalcAABB();
+        tree->Refresh(el[15]);
+        Recast::Circle circle(300, 100, 110);
+        std::vector<TestStruct*> output;
+        tree->Intersect(circle, output);
+        delete tree;
+    }
+    
     printf("%s", RECAST_BIN"/Output/nav_test_obs_navi.bin\n");
     Navi navi;
     int success = navi.LoadMesh(RECAST_BIN"/Output/nav_test_obs_navi.bin");

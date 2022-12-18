@@ -117,6 +117,29 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadDoorsNative
     return success;
 }
     
+JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadRegionsNative
+    (JNIEnv *env, jobject obj, jlong ptr, jstring filePath)
+{
+    if (!ptr)
+        return false;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    char* path = Jstring2String(env, filePath);
+    printf("load regions native:%s\n", path);
+    jboolean success = navi->LoadRegions(path);
+    free(path);
+    return success;
+}
+    
+JNIEXPORT jboolean JNICALL Java_org_navi_Navi_getRegionIdNative
+    (JNIEnv *env, jobject obj, jlong ptr, jfloat x, jfloat z)
+{
+    if (!ptr)
+        return false;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3 pos(x, 0, z);
+    return navi->GetRegionId(pos);
+}
+    
 JNIEXPORT void JNICALL Java_org_navi_Navi_initDoorsPolyNative
     (JNIEnv *env, jobject obj, jlong ptr)
 {

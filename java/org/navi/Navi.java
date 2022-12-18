@@ -71,6 +71,20 @@ public class Navi {
         return loadDoorsNative(naviPtr, filePath);
     }
 
+    private native boolean loadRegionsNative(long ptr, String filePath);
+    public boolean loadRegions(String filePath) {
+        if (naviPtr == 0)
+            return false;
+        return loadRegionsNative(naviPtr, filePath);
+    }
+    
+    private native int getRegionIdNative(long ptr, float x, float z);
+    public int getRegionId(float x, float z) {
+        if (naviPtr == 0)
+            return 0;
+        return getRegionIdNative(naviPtr, x, z);
+    }
+
     private native void initDoorsPolyNative(long ptr);
     public void initDoorsPoly() {
         if (naviPtr == 0)

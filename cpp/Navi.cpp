@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string>
+#include <list>
 #include "DetourCommon.h"
 #include "DetourNavMesh.h"
 #include "DetourNavMeshBuilder.h"
@@ -26,7 +27,32 @@ const char* sNvertsTag = "\tnverts:";
 const char* sVertTag = "\t\tvert:";
 const char* sNlinkTag = "\tnlink:";
 const char* sLinkTag = "\t\tlink:";
+const char* sRegionTreeTag = "RegionTree:";
+const char* sAABBTag = "\tAABB:";
+const char* sTreeDeepTag = "\tDeep:";
 
+/////////////////////////////////////////////////////////////////
+// VolumeRegion
+bool VolumeRegion::IsContain(float x, float z) const
+{
+    const int vertSize = (const int)verts.size();
+    for (int i = 0, j = vertSize - 1; i < vertSize; j = i++)
+    {
+        const Vector3& a = verts[j];
+        const Vector3& b = verts[i];
+        const float cx = x - a.x;
+        const float cz = z - a.z;
+        const float bx = b.x - a.x;
+        const float bz = b.z - a.z;
+        const float result = cz * bx - cx * bz;
+        if (result <= 0)
+            return false;
+    }
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////
+// TileCacheSetHeader
 struct TileCacheSetHeader
 {
     int magic;
@@ -202,6 +228,9 @@ Navi::~Navi()
     delete mAlloc;
     delete mComp;
     delete mProc;
+    
+    for (int i = 0; i < mRegions.size(); ++i)
+        delete mRegions[i];
 }
 
 bool Navi::LoadMesh(const char* path)
@@ -310,11 +339,16 @@ void Navi::VolumesClear(void* volumes)
     if (volumes == &mDoors)
     {
         mDoors.clear();
+        mDoorMap.clear();
         return;
     }
     if (volumes == &mRegions)
     {
+        for (int i = 0; i < mRegions.size(); ++i)
+            delete mRegions[i];
         mRegions.clear();
+        mRegionTree.Clear();
+        mRegionElemMap.clear();
         return;
     }
 }
@@ -331,10 +365,10 @@ GameVolume* Navi::NewVolume(void* volumes)
     }
     if (volumes == &mRegions)
     {
-        static VolumeRegion region;
-        region.id = 0;
+        VolumeRegion* region = new VolumeRegion;
+        region->id = 0;
         mRegions.push_back(region);
-        return &mRegions.back();
+        return region;
     }
     return nullptr;
 }
@@ -360,6 +394,27 @@ int* Navi::GetLinkPtr(void* volumes, void* volume, int index)
     return nullptr;
 }
 
+void Navi::SetAABB(void* volumes, void* volume, float x, float y, float width, float height)
+{
+    if (volumes == &mRegions)
+    {
+        VolumeRegion* region = (VolumeRegion*)volume;
+        auto* aabb = (Recast::AABB*)region->GetAABB();
+        aabb->SetXY(x, y);
+        aabb->SetSize(width, height);
+    }
+}
+
+void Navi::AddQuadNode(void* volumes, void* volume, int deep)
+{
+    if (volumes == &mRegions)
+    {
+        VolumeRegion* region = (VolumeRegion*)volume;
+        RegionElement* elem = mRegionTree.Add(region, deep);
+        mRegionElemMap.insert(std::pair<int, RegionElement*>(region->id, elem));
+    }
+}
+
 bool Navi::LoadVolumes(const char* path, void* volumes)
 {
     if (!mNavQuery || !mNavMesh)
@@ -383,6 +438,9 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
     const int vertTagSize = strlen(sVertTag);
     const int nlinkTagSize = strlen(sNlinkTag);
     const int linkTagSize = strlen(sLinkTag);
+    const int regionTreeTagSize = strlen(sRegionTreeTag);
+    const int aabbTagSize = strlen(sAABBTag);
+    const int treeDeepTagSize = strlen(sTreeDeepTag);
     int arrayIndex = 0;
     const int scanFormatSize = 256;
     char scanFormat[scanFormatSize];
@@ -392,11 +450,35 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
         bool success = readLine(file, buffer, maxSize, bufferPos, readCount, str, readEnd);
         if (!success && readEnd)
             break;
+        if (strncmp(str, sRegionTreeTag, regionTreeTagSize) == 0)
+        {
+            snprintf(scanFormat, scanFormatSize, "%sx=%%f,y=%%f,width=%%f,height=%%f", sRegionTreeTag);
+            float x, y, width, height;
+            sscanf(str, scanFormat, &x, &y, &width, &height);
+            mRegionTree.Init(x, y, width, height);
+            continue;
+        }
         if (strncmp(str, sVolumeTag, volumeTagSize) == 0)
         {
             volume = NewVolume(volumes);
             snprintf(scanFormat, scanFormatSize, "%s%%d", sVolumeTag);
             sscanf(str, scanFormat, &volume->id);
+            continue;
+        }
+        if (strncmp(str, sAABBTag, aabbTagSize) == 0)
+        {
+            snprintf(scanFormat, scanFormatSize, "%sx=%%f,y=%%f,width=%%f,height=%%f", sAABBTag);
+            float x, y, width, height;
+            sscanf(str, scanFormat, &x, &y, &width, &height);
+            SetAABB(volumes, volume, x, y, width, height);
+            continue;
+        }
+        if (strncmp(str, sTreeDeepTag, treeDeepTagSize) == 0)
+        {
+            snprintf(scanFormat, scanFormatSize, "%s%%d", sTreeDeepTag);
+            int deep;
+            sscanf(str, scanFormat, &deep);
+            AddQuadNode(volumes, volume, deep);
             continue;
         }
         if (strncmp(str, sNvertsTag, nvertsTagSize) == 0)
@@ -412,7 +494,7 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
         {
             if (arrayIndex >= volume->verts.size())
                 continue;
-            snprintf(scanFormat, scanFormatSize, "%sx:%%f,y:%%f,z:%%f", sVertTag);
+            snprintf(scanFormat, scanFormatSize, "%sx=%%f,y=%%f,z=%%f", sVertTag);
             Vector3& vert = volume->verts[arrayIndex++];
             sscanf(str, scanFormat, &vert.x, &vert.y, &vert.z);
             continue;
@@ -445,6 +527,11 @@ bool Navi::LoadDoors(const char* path)
     if (!LoadVolumes(path, &mDoors))
         return false;
     
+    for (int i = 0; i < mDoors.size(); ++i)
+    {
+        VolumeDoor* door = &mDoors[i];
+        mDoorMap.insert(std::pair<int, VolumeDoor*>(door->id, door));
+    }
     InitDoorsPoly();
     return true;
 }
@@ -504,15 +591,10 @@ void Navi::InitDoorPoly(VolumeDoor& door)
 
 VolumeDoor* Navi::FindDoor(const int doorId)
 {
-    for (int i = 0; i < mDoors.size(); ++i)
-    {
-        VolumeDoor& door = mDoors[i];
-        if (door.id == doorId)
-        {
-            return &door;
-        }
-    }
-    return nullptr;
+    auto it = mDoorMap.find(doorId);
+    if (it == mDoorMap.end())
+        return nullptr;
+    return it->second;
 }
 
 bool Navi::IsDoorOpen(VolumeDoor* door)
@@ -584,11 +666,176 @@ dtStatus Navi::RefreshObstacle()
     return DT_SUCCESS;
 }
 
+bool Navi::IsPassable(const Vector3& start, const Vector3& end)
+{
+    if (!mRegionTree.IsInited())
+    {
+        printf("(Navi::IsPassable)Region is not inited\n");
+        return false;
+    }
+    std::vector<VolumeRegion*> output;
+    bool found = mRegionTree.Intersect(start.x, start.z, output, true);
+    if (!found)
+    {
+        printf("(Navi::IsPassable)start is a invalid pos %f,%f,%f\n", start.x, start.y, start.z);
+        return false;
+    }
+    VolumeRegion* startRegion = output[0];
+    output.clear();
+    found = mRegionTree.Intersect(end.x, end.z, output, true);
+    if (!found)
+    {
+        printf("(Navi::IsPassable)end is a invalid pos %f,%f,%f\n", end.x, end.y, end.z);
+        return false;
+    }
+    VolumeRegion* endRegion = output[0];
+    if (startRegion == endRegion)
+        return true;
+    
+    auto* endAABB = endRegion->GetAABB();
+    float endMidX = endAABB->GetLeft() + endAABB->GetWidth() * 0.5f;
+    float endMidY = endAABB->GetBottom() + endAABB->GetHeight() * 0.5f;
+    
+    struct RegionBlock
+    {
+        const VolumeRegion* mRegion;
+        float mCost;
+        float mRemain;
+        int mPre;
+        
+        const VolumeRegion* GetRegion() const
+        {
+            return mRegion;
+        }
+        
+        float GetCost() const
+        {
+            return mCost;
+        }
+        
+        float GetTotalCost() const
+        {
+            return mCost + mRemain;
+        }
+        
+        int GetPre() const
+        {
+            return mPre;
+        }
+        
+        void Set(const VolumeRegion* region, float cost, float remain, int pre)
+        {
+            mRegion = region;
+            mCost = cost;
+            mRemain = remain;
+            mPre = pre;
+        }
+    };
+    
+    std::vector<RegionBlock> memory;
+    std::list<int> openList;
+    std::vector<int> closeList;
+    
+    auto insert2OpenList = [&](int blockIndex)
+    {
+        RegionBlock& block = memory[blockIndex];
+        float cost = block.GetTotalCost();
+        for (auto it = openList.begin(); it != openList.end(); ++it)
+        {
+            RegionBlock& openBlock = memory[*it];
+            if (cost < openBlock.GetTotalCost())
+            {
+                openList.insert(it, blockIndex);
+                return;
+            }
+        }
+        openList.push_back(blockIndex);
+    };
+    
+    auto stepRegion = [&](int pre, const RegionBlock& openBlock)
+    {
+        const VolumeRegion* region = openBlock.mRegion;
+        auto* aabb = region->GetAABB();
+        float midX = aabb->GetLeft() + aabb->GetWidth() * 0.5f;
+        float midY = aabb->GetBottom() + aabb->GetHeight() * 0.5f;
+        for (int i = 0; i < region->links.size(); ++i)
+        {
+            int linkId = region->links[i];
+            int doorId = getLinkDoorId(linkId);
+            if (doorId > 0)
+            {
+                const VolumeDoor* door = FindDoor(doorId);
+                if (!door)
+                {
+                    printf("Cannot find doorId=%d by region=%d", doorId, region->id);
+                    continue;
+                }
+                if (!door->open)
+                    continue;
+            }
+            int regionId = getLinkVolumeId(linkId);
+            const VolumeRegion* linkRegion = FindRegion(regionId);
+            if (!linkRegion)
+            {
+                printf("Cannot find regionId=%d by region=%d", regionId, region->id);
+                continue;
+            }
+            auto* linkAABB = linkRegion->GetAABB();
+            float linkMidX = linkAABB->GetLeft() + linkAABB->GetWidth() * 0.5f;
+            float linkMidY = linkAABB->GetBottom() + linkAABB->GetHeight() * 0.5f;
+            float diffX = linkMidX - midX;
+            float diffY = linkMidY - midY;
+            float cost = diffX * diffX + diffY * diffY + openBlock.GetCost();
+            diffX = endMidX - linkMidX;
+            diffY = endMidY - linkMidY;
+            float remain = diffX * diffX + diffY * diffY;
+            int blockIndex = memory.size();
+            memory.push_back(RegionBlock());
+            RegionBlock* block = &memory.back();
+            block->Set(linkRegion, cost, remain, pre);
+            if (linkRegion == endRegion)
+            {
+                closeList.push_back(blockIndex);
+                openList.clear();
+                return true;
+            }
+            insert2OpenList(blockIndex);
+        }
+        return false;
+    };
+    
+    memory.push_back(RegionBlock());
+    RegionBlock* block = &memory.back();
+    block->Set(startRegion, 0, 0, -1);
+    openList.push_back(0);
+    
+    found = false;
+    while (!openList.empty())
+    {
+        int openIndex = openList.front();
+        RegionBlock& openBlock = memory[openIndex];
+        openList.pop_front();
+        int pre = closeList.size();
+        closeList.push_back(openIndex);
+        found = stepRegion(pre, openBlock);
+        if (found)
+            break;
+    }
+    
+    return found;
+}
+
 int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)
 {
     if (!mNavMesh || !mNavQuery)
     {
         printf("Navi mesh or query is not inited\n");
+        return DT_FAILURE;
+    }
+    
+    if (!IsPassable(start, end))
+    {
+        printf("(Navi::FindPath)Region is not passable\n");
         return DT_FAILURE;
     }
     
@@ -632,22 +879,4 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
     if (mPathCount < 2)
         return DT_FAILURE;
     return status;
-}
-
-bool Navi::PointInRegion(float x, float z, const VolumeRegion& region)
-{
-    const int vertSize = (const int)region.verts.size();
-    for (int i = 0, j = vertSize - 1; i < vertSize; j = i++)
-    {
-        const Vector3& a = region.verts[j];
-        const Vector3& b = region.verts[i];
-        const float cx = x - a.x;
-        const float cz = z - a.z;
-        const float bx = b.x - a.x;
-        const float bz = b.z - a.z;
-        const float result = cz * bx - cx * bz;
-        if (result <= 0)
-            return false;
-    }
-    return true;
 }

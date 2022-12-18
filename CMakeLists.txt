@@ -50,6 +50,7 @@ add_subdirectory(${RECAST_DIR}/Recast)
 add_subdirectory(${RECAST_DIR}/RecastDemo)
 
 
+include_directories(${RECAST_DIR}/QuadTree/Include)
 include_directories(${RECAST_DIR}/Detour/Include)
 include_directories(${RECAST_DIR}/DetourTileCache/Include)
 include_directories(${RECAST_DIR}/Recast/Include)
@@ -65,6 +66,9 @@ set(SRC_LIST ${CPP_PATH}/Navi.cpp
 set(SRC_LIST ${SRC_LIST}
     ${CPP_PATH}/Navi.h
     ${RECAST_DIR}/RecastDemo/Include/Filelist.h
+    ${RECAST_DIR}/QuadTree/Include/QuadTree.h
+    ${RECAST_DIR}/QuadTree/Include/AABB.h
+    ${RECAST_DIR}/QuadTree/Include/Circle.h
 )
 
 if (APPLE)
