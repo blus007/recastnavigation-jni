@@ -44,7 +44,7 @@ else()
 endif()
 
 set(RECAST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/recastnavigation)
-add_definitions(-DDT_POLYREF64=1)
+# add_definitions(-DDT_POLYREF64=1)
 
 # include recast library
 include(GNUInstallDirs)
