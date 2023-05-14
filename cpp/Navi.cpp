@@ -430,6 +430,10 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
     int bufferPos = 0;
     int readCount = 0;
     bool readEnd = false;
+
+    auto readFunc = [&](char* buffer, int size) {
+        return fread(buffer, 1, size, file);
+    };
     
     GameVolume* volume = nullptr;
     
@@ -447,7 +451,7 @@ bool Navi::LoadVolumes(const char* path, void* volumes)
     do
     {
         char* str = buffer == buffer1 ? buffer2 : buffer1;
-        bool success = readLine(file, buffer, maxSize, bufferPos, readCount, str, readEnd);
+        bool success = readLine(readFunc, buffer, maxSize, bufferPos, readCount, str, readEnd);
         if (!success && readEnd)
             break;
         if (strncmp(str, sRegionTreeTag, regionTreeTagSize) == 0)
