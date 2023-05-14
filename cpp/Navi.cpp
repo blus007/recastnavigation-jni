@@ -582,8 +582,9 @@ void Navi::InitDoorPoly(VolumeDoor& door)
     dtPolyRef resultRef[maxResult];
     memset(resultRef, 0, sizeof(dtPolyRef) * maxResult);
     int resultCount = 0;
+    door.polyRefs.clear();
     dtStatus status = mNavQuery->queryPolygons(centerPos, halfExtents, &filter, resultRef, &resultCount, maxResult);
-    if (!(status & DT_SUCCESS))
+    if (!(status & DT_SUCCESS) || !resultCount)
         return;
     door.polyRefs.resize(resultCount);
     memcpy(&door.polyRefs.front(), resultRef, sizeof(dtPolyRef) * resultCount);

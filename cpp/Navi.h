@@ -4,6 +4,16 @@
 #include <map>
 #include "QuadTree.h"
 
+#ifdef _WIN32
+#   ifdef EXPORT_DLL
+#       define NAVI_API __declspec(dllexport)
+#   else
+#       define NAVI_API __declspec(dllimport)
+#   endif
+#else
+#   define NAVI_API
+#endif
+
 enum PolyAreas
 {
     POLYAREA_GROUND,
@@ -58,7 +68,7 @@ struct VolumeDoor : public GameVolume
     bool open;
 };
 
-struct VolumeRegion : public GameVolume
+struct NAVI_API VolumeRegion : public GameVolume
 {
     std::vector<int> links;
     Recast::AABB aabb;
@@ -89,7 +99,7 @@ inline int getLinkDoorId(int linkId)
 typedef Recast::QuadTree<VolumeRegion> RegionTree;
 typedef Recast::QuadTree<VolumeRegion>::Element RegionElement;
 
-class Navi
+class NAVI_API Navi
 {
     class dtNavMesh* mNavMesh;
     class dtNavMeshQuery* mNavQuery;
