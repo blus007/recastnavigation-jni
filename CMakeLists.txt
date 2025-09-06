@@ -44,6 +44,7 @@ else()
 endif()
 
 set(RECAST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/recastnavigation)
+set(JSON_DIR ${RECAST_DIR}/ThirdParty/json)
 add_definitions(-DDT_POLYREF64=1)
 
 # include recast library
@@ -57,6 +58,7 @@ add_subdirectory(${RECAST_DIR}/RecastDemo)
 
 
 include_directories(${RECAST_DIR}/QuadTree/Include)
+include_directories(${JSON_DIR}/include)
 include_directories(${RECAST_DIR}/Detour/Include)
 include_directories(${RECAST_DIR}/DetourTileCache/Include)
 include_directories(${RECAST_DIR}/Recast/Include)
@@ -66,15 +68,18 @@ include_directories(${RECAST_DIR}/RecastDemo/Include)
 set(CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 set(SRC_LIST ${CPP_PATH}/Navi.cpp
     ${CPP_PATH}/NaviExport.cpp
+    ${CPP_PATH}/Util.cpp
     ${RECAST_DIR}/RecastDemo/Contrib/fastlz/fastlz.c
     ${RECAST_DIR}/RecastDemo/Source/Filelist.cpp
 )
 set(SRC_LIST ${SRC_LIST}
     ${CPP_PATH}/Navi.h
+    ${CPP_PATH}/Util.h
     ${RECAST_DIR}/RecastDemo/Include/Filelist.h
     ${RECAST_DIR}/QuadTree/Include/QuadTree.h
     ${RECAST_DIR}/QuadTree/Include/AABB.h
     ${RECAST_DIR}/QuadTree/Include/Circle.h
+    ${JSON_DIR}/include/nlohmann/json.hpp
 )
 
 if (APPLE)

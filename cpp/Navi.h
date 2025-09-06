@@ -56,29 +56,31 @@ struct Vector3
     {}
 };
 
-struct GameVolume
+struct NAVI_API GameVolume
 {
     int id;
+    Recast::AABB aabb;
     std::vector<Vector3> verts;
+
+    void CalcAABB();
+    bool IsContain(float x, float y) const;
+
+    const Recast::AABB* GetAABB() const
+    {
+        return &aabb;
+    }
 };
 
-struct VolumeDoor : public GameVolume
+struct NAVI_API VolumeDoor : public GameVolume
 {
     std::vector<dtPolyRef> polyRefs;
+    int links[2];
     bool open;
 };
 
 struct NAVI_API VolumeRegion : public GameVolume
 {
-    std::vector<int> links;
-    Recast::AABB aabb;
-    
-    const Recast::AABB* GetAABB() const
-    {
-        return &aabb;
-    }
-    
-    bool IsContain(float x, float y) const;
+    int province;
 };
 
 inline int buildLinkId(int volumeId, int doorId)
@@ -96,8 +98,15 @@ inline int getLinkDoorId(int linkId)
     return (linkId >> 16) & 0x0000ffff;
 }
 
+typedef Recast::QuadTree<VolumeDoor> DoorTree;
+typedef Recast::QuadTree<VolumeDoor>::Element DoorElement;
 typedef Recast::QuadTree<VolumeRegion> RegionTree;
 typedef Recast::QuadTree<VolumeRegion>::Element RegionElement;
+typedef std::vector<int> DoorList;
+// province => doors
+typedef std::map<int, DoorList> ProvinceDoorMap;
+// province => neighbor province
+typedef std::map<int, ProvinceDoorMap> ProvinceLinkMap;
 
 class NAVI_API Navi
 {
@@ -109,7 +118,8 @@ class NAVI_API Navi
     struct FastLZCompressor* mComp;
     struct MeshProcess* mProc;
     
-    class dtQueryFilter* mFilter;
+    class dtQueryFilter* mPathFilter;
+    class dtQueryFilter* mPolyFilter;
     dtPolyRef* mSearchPolys;
     int mSearchedPolyCount;
     Vector3* mPath;
@@ -119,18 +129,20 @@ class NAVI_API Navi
     
     std::vector<VolumeDoor> mDoors;
     std::map<int, VolumeDoor*> mDoorMap;
+    DoorTree mDoorTree;
+    std::map<int, DoorElement*> mDoorElemMap;
     
     std::vector<VolumeRegion*> mRegions;
     RegionTree mRegionTree;
     std::map<int, RegionElement*> mRegionElemMap;
+
+    ProvinceLinkMap mProvinceLinkMap;
     
-    void VolumesClear(void* volumes);
-    GameVolume* NewVolume(void* volumes);
-    void ResizeLinkCount(void* volumes, void* volume, int count);
-    int* GetLinkPtr(void* volumes, void* volume, int index);
-    void SetAABB(void* volumes, void* volume, float x, float y, float width, float height);
-    void AddQuadNode(void* volumes, void* volume, int deep);
-    bool LoadVolumes(const char* path, void* volumes);
+    void InitProvinceLink();
+    bool LoadDoorsInternal(const char* path);
+    void ClearDoors();
+    bool LoadRegionsInternal(const char* path);
+    void ClearRegions();
     
     void InitDoorPoly(VolumeDoor& door);
     VolumeDoor* FindDoor(const int doorId);
@@ -138,6 +150,9 @@ class NAVI_API Navi
     void OpenDoor(VolumeDoor* door, const bool open);
     void OpenDoorPoly(VolumeDoor* door, const bool open);
     bool PointInRegion(float x, float z, const VolumeRegion& region);
+    bool IsProvincePassable(int startProvince, int endProvince);
+    bool FindProvince(const Vector3& pos, std::vector<int>& provinces);
+    bool WalkablePoly(const dtPolyRef polyRef);
     
 public:
     Navi();

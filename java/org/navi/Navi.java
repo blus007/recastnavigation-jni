@@ -5,6 +5,16 @@ public class Navi {
         System.loadLibrary("RecastJni");
         //System.out.println(String.format("getMaxPosSizeNative=%d", getMaxPosSizeNative()));
     }
+
+    // level:0-debug 1-warning 2-error
+    public static void jniLog(int level, String message) {
+        // switch (level) {
+        //     case 0: System.out.println(message); return;
+        //     case 1: System.out.println(message); return;
+        //     case 2: System.out.println(message); return;
+        // }
+    }
+
     public static final int FAILURE = 1 << 31; // Operation failed.
     public static final int SUCCESS = 1 << 30; // Operation succeed.
 
