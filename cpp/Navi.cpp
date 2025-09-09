@@ -16,15 +16,12 @@
 #include <fstream>
 #include "Util.h"
 
-#define MAX_NODE 65535
-
 // check if is 64bit
 COMPILE_TEST(BIT_SIZE, sizeof(void*) == 8);
 COMPILE_TEST(POLY_REF_SIZE, sizeof(dtPolyRef) == 8);
 
 const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';
 const int TILECACHESET_VERSION = 1;
-const int MAX_POLYS = 1024;
 
 /////////////////////////////////////////////////////////////////
 // GameVolume
@@ -213,13 +210,14 @@ MeshProcess::~MeshProcess()
 
 /////////////////////////////////////////////////////////////////
 // Navi
-Navi::Navi()
+Navi::Navi(int maxPolys)
 :mNavMesh(nullptr)
 ,mNavQuery(nullptr)
 ,mTileCache(nullptr)
 ,mSearchedPolyCount(0)
 ,mPathCount(0)
-,mDefaultPolySize(2, 4, 2)
+,mDefaultPolySize(0, 6, 0)
+, mMaxPolys(maxPolys)
 {
     mAlloc = new LinearAllocator(32000);
     mComp = new FastLZCompressor;
@@ -232,8 +230,8 @@ Navi::Navi()
     mPolyFilter = new dtQueryFilter;
     mPolyFilter->setIncludeFlags(POLYFLAGS_ALL);
     
-    mSearchPolys = new dtPolyRef[MAX_POLYS];
-    mPath = new Vector3[MAX_POLYS];
+    mSearchPolys = new dtPolyRef[mMaxPolys];
+    mPath = new Vector3[mMaxPolys];
 }
 
 Navi::~Navi()
@@ -255,7 +253,39 @@ Navi::~Navi()
         delete mRegions[i];
 }
 
-bool Navi::LoadMesh(const char* path)
+int Navi::GetPathFilterInclude()
+{
+    return (unsigned int)mPathFilter->getIncludeFlags();
+}
+
+int Navi::GetPathFilterExclude()
+{
+    return (unsigned int)mPathFilter->getExcludeFlags();
+}
+
+void Navi::SetPathFilter(int include, int exclude)
+{
+    mPathFilter->setIncludeFlags(include);
+    mPathFilter->setExcludeFlags(exclude);
+}
+
+int Navi::GetPolyFilterInclude()
+{
+    return (unsigned int)mPolyFilter->getIncludeFlags();
+}
+
+int Navi::GetPolyFilterExclude()
+{
+    return (unsigned int)mPolyFilter->getExcludeFlags();
+}
+
+void Navi::SetPolyFilter(int include, int exclude)
+{
+    mPolyFilter->setIncludeFlags(include);
+    mPolyFilter->setExcludeFlags(exclude);
+}
+
+bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
 {
     dtFreeNavMeshQuery(mNavQuery);
     dtFreeNavMesh(mNavMesh);
@@ -352,7 +382,7 @@ bool Navi::LoadMesh(const char* path)
     fclose(fp);
     
     mNavQuery = dtAllocNavMeshQuery();
-    status = mNavQuery->init(mNavMesh, MAX_NODE);
+    status = mNavQuery->init(mNavMesh, maxSearchNodes);
     if (dtStatusFailed(status))
     {
         LOG_ERROR("Load Mesh failed by mNavQuery->init");
@@ -403,33 +433,41 @@ bool Navi::LoadDoorsInternal(const char* path)
     if (!mNavQuery || !mNavMesh)
         return false;
     ClearDoors();
-    std::ifstream read(path);
-    if (!read.is_open())
-        return false;
-    nlohmann::json data = nlohmann::json::parse(read);
-    const int volumeCount = data["volumes"].size();
-    for (int i = 0; i < volumeCount; ++i)
+    try
     {
-        mDoors.push_back(VolumeDoor());
-        auto& door = mDoors.back();
-        auto& volume = data["volumes"][i];
-
-        door.id = volume["id"];
-        const int vertCount = volume["verts"].size();
-        door.verts.resize(vertCount);
-        for (int j = 0; j < vertCount; ++j)
+        std::ifstream read(path);
+        if (!read.is_open())
+            return false;
+        nlohmann::json data = nlohmann::json::parse(read);
+        const int volumeCount = data["volumes"].size();
+        for (int i = 0; i < volumeCount; ++i)
         {
-            auto& jvert = volume["verts"][j];
-            Vector3& vert = door.verts[j];
-            vert.x = jvert[0];
-            vert.y = jvert[1];
-            vert.z = jvert[2];
+            mDoors.push_back(VolumeDoor());
+            auto& door = mDoors.back();
+            auto& volume = data["volumes"][i];
+
+            door.id = volume["id"];
+            const int vertCount = volume["verts"].size();
+            door.verts.resize(vertCount);
+            for (int j = 0; j < vertCount; ++j)
+            {
+                auto& jvert = volume["verts"][j];
+                Vector3& vert = door.verts[j];
+                vert.x = jvert[0];
+                vert.y = jvert[1];
+                vert.z = jvert[2];
+            }
+            auto& links = volume["link"];
+            door.links[0] = links[0];
+            door.links[1] = links[1];
+            door.open = false;
+            door.CalcAABB();
         }
-        auto& links = volume["link"];
-        door.links[0] = links[0];
-        door.links[1] = links[1];
-        door.open = false;
-        door.CalcAABB();
+    }
+    catch (const std::exception& e)
+    {
+        ClearDoors();
+        return false;
     }
     return true;
 }
@@ -582,38 +620,46 @@ bool Navi::LoadRegionsInternal(const char* path)
     if (!mNavQuery || !mNavMesh)
         return false;
     ClearRegions();
-    std::ifstream read(path);
-    if (!read.is_open())
-        return false;
-    nlohmann::json data = nlohmann::json::parse(read);
-    auto& info = data["info"];
-    mRegionTree.Init(info["x"], info["z"], info["width"], info["height"]);
-    const int volumeCount = data["volumes"].size();
-    for (int i = 0; i < volumeCount; ++i)
+    try
     {
-        VolumeRegion* regionPtr = new VolumeRegion;
-        mRegions.push_back(regionPtr);
-
-        auto& region = *regionPtr;
-        auto& volume = data["volumes"][i];
-
-        region.id = volume["id"];
-        region.province = volume["province"];
-        const int vertCount = volume["verts"].size();
-        region.verts.resize(vertCount);
-        for (int j = 0; j < vertCount; ++j)
+        std::ifstream read(path);
+        if (!read.is_open())
+            return false;
+        nlohmann::json data = nlohmann::json::parse(read);
+        auto& info = data["info"];
+        mRegionTree.Init(info["x"], info["z"], info["width"], info["height"]);
+        const int volumeCount = data["volumes"].size();
+        for (int i = 0; i < volumeCount; ++i)
         {
-            auto& jvert = volume["verts"][j];
-            Vector3& vert = region.verts[j];
-            vert.x = jvert[0];
-            vert.y = jvert[1];
-            vert.z = jvert[2];
+            VolumeRegion* regionPtr = new VolumeRegion;
+            mRegions.push_back(regionPtr);
+
+            auto& region = *regionPtr;
+            auto& volume = data["volumes"][i];
+
+            region.id = volume["id"];
+            region.province = volume["province"];
+            const int vertCount = volume["verts"].size();
+            region.verts.resize(vertCount);
+            for (int j = 0; j < vertCount; ++j)
+            {
+                auto& jvert = volume["verts"][j];
+                Vector3& vert = region.verts[j];
+                vert.x = jvert[0];
+                vert.y = jvert[1];
+                vert.z = jvert[2];
+            }
+            auto& aabb = volume["aabb"];
+            region.aabb.SetXY(aabb["x"], aabb["z"]);
+            region.aabb.SetSize(aabb["width"], aabb["height"]);
+            RegionElement* elem = mRegionTree.Add(regionPtr, volume["deep"]);
+            mRegionElemMap.insert(std::pair<int, RegionElement*>(region.id, elem));
         }
-        auto& aabb = volume["aabb"];
-        region.aabb.SetXY(aabb["x"], aabb["z"]);
-        region.aabb.SetSize(aabb["width"], aabb["height"]);
-        RegionElement* elem = mRegionTree.Add(regionPtr, volume["deep"]);
-        mRegionElemMap.insert(std::pair<int, RegionElement*>(region.id, elem));
+    }
+    catch (const std::exception& e)
+    {
+        ClearRegions();
+        return false;
     }
     return true;
 }
@@ -764,7 +810,7 @@ bool Navi::IsPassable(const Vector3& start, const Vector3& end)
         LOG_ERROR("(Navi::IsPassable)end is a invalid pos %f,%f,%f", end.x, end.y, end.z);
         return false;
     }
-    // check area connected
+    // check province connected
     for (int i = 0; i < startProvinces.size(); ++i)
     {
         int startProvince = startProvinces[i];
@@ -786,6 +832,39 @@ bool Navi::WalkablePoly(const dtPolyRef polyRef)
     if (status != DT_SUCCESS)
         return false;
     return poly->flags == POLYFLAGS_WALK;
+}
+
+void Navi::MakePathOutOfBlock(const Vector3& polySize)
+{
+    if (mPathCount < 2)
+        return;
+    int lastIndex = mPathCount - 1;
+    for (int i = lastIndex; i > 0; --i)
+    {
+        Vector3& fromPt = mPath[lastIndex];
+        Vector3& toPt = mPath[lastIndex - 1];
+        Vector3 diffPt(toPt);
+        diffPt.Sub(fromPt);
+        float length = diffPt.Length();
+        const int splitCount = (int)(length / 0.1f);
+        diffPt.Mul(1.0f / (float)splitCount);
+        Vector3 pt(fromPt);
+        for (int j = 0; j < splitCount; ++j)
+        {
+            dtPolyRef polyRef = 0;
+            dtStatus status = mNavQuery->findNearestPoly((float*)&pt, (float*)&polySize, mPolyFilter, &polyRef, nullptr);
+            if (status & DT_SUCCESS)
+            {
+                if (WalkablePoly(polyRef))
+                {
+                    mPath[i] = pt;
+                    mPathCount = i + 1;
+                    return;
+                }
+            }
+            pt.Add(diffPt);
+        }
+    }
 }
 
 int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)
@@ -827,9 +906,24 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
         LOG_INFO("Cannot walk from block to block start(%f, %f, %f) => end(%f, %f, %f)", start.x, start.y, start.z, end.x, end.y, end.z);
         return DT_FAILURE;
     }
+    float* startPtr = (float*)&start;
+    float* endPtr = (float*)&end;
+    bool exchanged = false;
+    if (!startWalkable)
+    {
+        exchanged = true;
+
+        dtPolyRef temp = startRef;
+        startRef = endRef;
+        endRef = temp;
+        
+        float* tempPtr = startPtr;
+        startPtr = endPtr;
+        endPtr = tempPtr;
+    }
     
     mSearchedPolyCount = 0;
-    status = mNavQuery->findPath(startRef, endRef, (float*)&start, (float*)&end, mPathFilter, mSearchPolys, &mSearchedPolyCount, MAX_POLYS);
+    status = mNavQuery->findPath(startRef, endRef, startPtr, endPtr, mPathFilter, mSearchPolys, &mSearchedPolyCount, mMaxPolys);
     if (!(status & DT_SUCCESS))
     {
         LOG_ERROR("Cannot find path from start(%f, %f, %f) to end(%f, %f, %f)", start.x, start.y, start.z, end.x, end.y, end.z);
@@ -840,12 +934,27 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
     {
         // In case of partial path, make sure the end point is clamped to the last polygon.
         float epos[3];
-        dtVcopy(epos, (float*)&end);
+        dtVcopy(epos, endPtr);
         if (mSearchPolys[mSearchedPolyCount - 1] != endRef)
-            mNavQuery->closestPointOnPoly(mSearchPolys[mSearchedPolyCount - 1], (float*)&end, epos, nullptr);
+            mNavQuery->closestPointOnPoly(mSearchPolys[mSearchedPolyCount - 1], endPtr, epos, nullptr);
         
-        mNavQuery->findStraightPath((float*)&start, epos, mSearchPolys, mSearchedPolyCount,
-                                     (float*)mPath, nullptr, nullptr, &mPathCount, MAX_POLYS, 0);
+        mNavQuery->findStraightPath(startPtr, epos, mSearchPolys, mSearchedPolyCount,
+                                     (float*)mPath, nullptr, nullptr, &mPathCount, mMaxPolys, 0);
+        MakePathOutOfBlock(polySize);
+        if (mPathCount > 1 && exchanged)
+        {
+            const int vectorSize = sizeof(float) * 3;
+            float* pathPtr = (float*)mPath;
+            int mid = mPathCount / 2;
+            int lastIndex = mPathCount - 1;
+            for (int i = 0; i < mid; ++i)
+            {
+                int exchangePos = lastIndex - i;
+                memcpy(epos, pathPtr + i * 3, vectorSize);
+                memcpy(pathPtr + i * 3, pathPtr + exchangePos * 3, vectorSize);
+                memcpy(pathPtr + exchangePos * 3, epos, vectorSize);
+            }
+        }
     }
     if (mPathCount < 2)
         return DT_FAILURE;

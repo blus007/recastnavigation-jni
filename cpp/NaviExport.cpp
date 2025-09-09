@@ -61,15 +61,15 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_getMaxPosSizeNative
 {
     JAVA_ENV_INIT(env);
     //printf("Java_org_navi_Navi_getMaxPosSizeNative:env=%p obj=%p\n", env, obj);
-    return MAX_POLYS;
+    return MAX_SEARCH_POLYS;
 }
     
 JNIEXPORT jlong JNICALL Java_org_navi_Navi_createNative
-    (JNIEnv *env, jobject obj)
+    (JNIEnv *env, jobject obj, jint maxPoly)
 {
     JAVA_ENV_INIT(env);
     //printf("Java_org_navi_Navi_createNative:env=%p obj=%p\n", env, obj);
-    Navi* navi = new Navi;
+    Navi* navi = new Navi(maxPoly);
     jlong ptr = Ptr2Long(navi);
     return ptr;
 }
@@ -97,7 +97,7 @@ JNIEXPORT void JNICALL Java_org_navi_Navi_setDefaultPolySizeNative
 }
 
 JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadMeshNative
-  (JNIEnv *env, jobject obj, jlong ptr, jstring filePath)
+  (JNIEnv *env, jobject obj, jlong ptr, jstring filePath, jint maxSearchNodes)
 {
     JAVA_ENV_INIT(env);
     if (!ptr)
@@ -105,7 +105,7 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadMeshNative
     Navi* navi = (Navi*)Long2Ptr(ptr);
 	char* path = Jstring2String(env, filePath);
     printf("load mesh native:%s\n", path);
-    jboolean success = navi->LoadMesh(path);
+    jboolean success = navi->LoadMesh(path, maxSearchNodes);
 	free(path);
 	return success;
 }
@@ -293,10 +293,9 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_getObstacleReqRemainCountNative
 }
 
 JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathNative
-    (JNIEnv *env, jobject obj, jlong ptr, jfloatArray posArray, jintArray posSize,
-     jfloat startX, jfloat startY, jfloat startZ,
-     jfloat endX, jfloat endY, jfloat endZ,
-     jfloat sizeX, jfloat sizeY, jfloat sizeZ)
+    (JNIEnv *env, jobject obj, jlong ptr, jfloatArray posArray, jint arraySize,
+     jintArray posSize, jfloat startX, jfloat startY, jfloat startZ,
+     jfloat endX, jfloat endY, jfloat endZ, jfloat sizeX, jfloat sizeY, jfloat sizeZ)
 {
     JAVA_ENV_INIT(env);
     if (!ptr)
@@ -311,15 +310,16 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathNative
     
     const int pathCount = navi->GetPathCount();
     const Vector3* path = navi->GetPath();
-    env->SetFloatArrayRegion(posArray, 0, pathCount * 3, (const jfloat*)path);
-    env->SetIntArrayRegion(posSize, 0, 1, (const jint*)&pathCount);
+    const int maxCount = pathCount < arraySize ? pathCount : arraySize;
+    env->SetFloatArrayRegion(posArray, 0, maxCount * 3, (const jfloat*)path);
+    env->SetIntArrayRegion(posSize, 0, 1, (const jint*)&maxCount);
     
     return result;
 }
     
 JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathDefaultNative
-    (JNIEnv *env, jobject obj, jlong ptr, jfloatArray posArray, jintArray posSize,
-     jfloat startX, jfloat startY, jfloat startZ,
+    (JNIEnv *env, jobject obj, jlong ptr, jfloatArray posArray, jint arraySize,
+     jintArray posSize, jfloat startX, jfloat startY, jfloat startZ,
      jfloat endX, jfloat endY, jfloat endZ)
 {
     JAVA_ENV_INIT(env);
@@ -334,8 +334,9 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathDefaultNative
     
     const int pathCount = navi->GetPathCount();
     const Vector3* path = navi->GetPath();
-    env->SetFloatArrayRegion(posArray, 0, pathCount * 3, (const jfloat*)path);
-    env->SetIntArrayRegion(posSize, 0, 1, (const jint*)&pathCount);
+    const int maxCount = pathCount < arraySize ? pathCount : arraySize;
+    env->SetFloatArrayRegion(posArray, 0, maxCount * 3, (const jfloat*)path);
+    env->SetIntArrayRegion(posSize, 0, 1, (const jint*)&maxCount);
     
     return result;
 }

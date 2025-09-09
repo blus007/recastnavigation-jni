@@ -96,24 +96,22 @@ int main(int argc, char* argv[])
     }
     
     printf("%s", RECAST_BIN"/Output/nav_test_obs_navi.bin\n");
-    Navi navi;
-    int success = navi.LoadMesh(RECAST_BIN"/Output/nav_test_obs_navi.bin");
-    printf("load navi success = %d\n", success);
+    Navi navi(MAX_SEARCH_POLYS);
+    int success = navi.LoadMesh(RECAST_BIN"/Output/nav_test_obs_navi.bin", MAX_SEARCH_POLYS);
+    printf("load navi success = %s\n", success ? "success" : "fail");
     success = navi.LoadDoors(RECAST_BIN"/Output/nav_test.door");
-    printf("load door success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
+    printf("load door success = %s\n", success ? "success" : "fail");
     success = navi.LoadRegions(RECAST_BIN"/Output/nav_test.region");
-    printf("load region success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
+    printf("load region success = %s\n", success ? "success" : "fail");
     
-    Vector3 start(54.9729767f, -2.37854576f, 4.9592514f);
-    Vector3 end(49.1615448f, -2.33363724f, 18.9671612f);
+    Vector3 start(51.1867447f, -1.80287552f, -24.2468395f);
+    Vector3 end(40.9090157f, -1.78335953f, -25.2743912f);
     const Vector3* path;
     
-//    54.9729767,-2.37854576,4.9592514
-//    56.010685,-2.26951694,6.79984951
-//    56.010685,-2.0695169,9.79984951
-//    49.1106834,-2.26951671,13.3998508
-//    49.1106834,-2.26951671,16.3998508
-//    49.1615448,-2.33363724,18.9671612
+//    51.1867447, -1.80287552, -24.2468395f
+//    47.3106842, -2.26951671, -25.9001503
+//    44.3106842, -1.86951673, -25.9001503
+//    40.9090157, -1.78335953, -25.2743912
     navi.OpenDoor(1, false);
     success = navi.FindPath(start, end);
     printf("find path close door success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
@@ -123,11 +121,8 @@ int main(int argc, char* argv[])
         printf("pos = (%f,%f,%f)\n", path[i].x, path[i].y, path[i].z);
     }
     
-//    54.9729767,-2.37854576,4.9592514
-//    56.010685,-2.26951694,6.79984951
-//    56.010685,-2.0695169,9.79984951
-//    52.1106834,-2.06951666,13.3998508
-//    49.1615448,-2.33363724,18.9671612
+//    51.1867447, -1.80287552, -24.2468395f
+//    40.9090157, -1.78335953, -25.2743912
     navi.OpenDoor(1, true);
     success = navi.FindPath(start, end);
     printf("find path open door success = %s\n", dtStatusSucceed(success) ? "success" : "fail");

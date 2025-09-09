@@ -14,6 +14,9 @@
 #   define NAVI_API
 #endif
 
+#define MAX_QUERY_INIT_NODE 65535
+#define MAX_SEARCH_POLYS 1024
+
 enum PolyAreas
 {
     POLYAREA_GROUND,
@@ -35,8 +38,6 @@ enum PolyFlags
     POLYFLAGS_ALL           = 0xffff    // All abilities.
 };
 
-extern const int MAX_POLYS;
-
 struct Vector3
 {
     float x;
@@ -54,6 +55,55 @@ struct Vector3
     ,y(inY)
     ,z(inZ)
     {}
+
+    Vector3(const Vector3& other)
+    :x(other.x)
+    ,y(other.y)
+    ,z(other.z)
+    {}
+
+    inline double Length()
+    {
+        double dist2 = x * x + y * y + z * z;
+        double dist = sqrt(dist2);
+        return dist;
+    }
+
+    inline void Normalise()
+    {
+        double length = Length();
+        Normalise(length);
+    }
+
+    inline void Normalise(double length)
+    {
+        if (length < 1e-8)
+            return;
+        x /= length;
+        y /= length;
+        z /= length;
+    }
+
+    inline void Mul(float num)
+    {
+        x *= num;
+        y *= num;
+        z *= num;
+    }
+
+    inline void Add(const Vector3& other)
+    {
+        x += other.x;
+        y += other.y;
+        z += other.z;
+    }
+
+    inline void Sub(const Vector3& other)
+    {
+        x -= other.x;
+        y -= other.y;
+        z -= other.z;
+    }
 };
 
 struct NAVI_API GameVolume
@@ -124,6 +174,7 @@ class NAVI_API Navi
     int mSearchedPolyCount;
     Vector3* mPath;
     int mPathCount;
+    int mMaxPolys;
     
     Vector3 mDefaultPolySize;
     
@@ -153,9 +204,10 @@ class NAVI_API Navi
     bool IsProvincePassable(int startProvince, int endProvince);
     bool FindProvince(const Vector3& pos, std::vector<int>& provinces);
     bool WalkablePoly(const dtPolyRef polyRef);
+    void MakePathOutOfBlock(const Vector3& polySize);
     
 public:
-    Navi();
+    Navi(int maxPoly);
     ~Navi();
     
     inline void SetDefaultPolySize(float x, float y, float z)
@@ -164,8 +216,21 @@ public:
         mDefaultPolySize.y = y;
         mDefaultPolySize.z = z;
     }
+
+    inline int GetMaxPolys()
+    {
+        return mMaxPolys;
+    }
+
+    int GetPathFilterInclude();
+    int GetPathFilterExclude();
+    void SetPathFilter(int include, int exclude);
+
+    int GetPolyFilterInclude();
+    int GetPolyFilterExclude();
+    void SetPolyFilter(int include, int exclude);
     
-    bool LoadMesh(const char* path);
+    bool LoadMesh(const char* path, const int maxSearchNodes);
     bool LoadDoors(const char* path);
     bool LoadRegions(const char* path);
     

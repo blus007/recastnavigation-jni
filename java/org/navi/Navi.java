@@ -46,11 +46,16 @@ public class Navi {
         return posArray;
     }
 
-    private native long createNative();
+    private native long createNative(int maxPoly);
     public void init() {
         if (naviPtr != 0)
             destroyNative(naviPtr);
-        naviPtr = createNative();
+        naviPtr = createNative(1024);
+    }
+    public void init(maxPoly) {
+        if (naviPtr != 0)
+            destroyNative(naviPtr);
+        naviPtr = createNative(maxPoly);
     }
     
     private native void destroyNative(long ptr);
@@ -71,7 +76,12 @@ public class Navi {
     public boolean loadMesh(String filePath) {
         if (naviPtr == 0)
             return false;
-        return loadMeshNative(naviPtr, filePath);
+        return loadMeshNative(naviPtr, filePath, 65535);
+    }
+    public boolean loadMesh(String filePath, int maxSearchNodes) {
+        if (naviPtr == 0)
+            return false;
+        return loadMeshNative(naviPtr, filePath, maxSearchNodes);
     }
         
     private native boolean loadDoorsNative(long ptr, String filePath);
@@ -195,7 +205,7 @@ public class Navi {
         return getObstacleReqRemainCountNative(naviPtr);
     }
 
-    private native int findPathNative(long ptr, float[] posArray, int[] posSize,
+    private native int findPathNative(long ptr, float[] posArray, int arraySize, int[] posSize,
          float startX, float startY, float startZ,
          float endX, float endY, float endZ,
          float sizeX, float sizeY, float sizeZ);
@@ -204,18 +214,18 @@ public class Navi {
          float sizeX, float sizeY, float sizeZ) {
         if (naviPtr == 0)
             return FAILURE;
-        return findPathNative(naviPtr, posArray, posSize, startX, startY, startZ, 
+        return findPathNative(naviPtr, posArray, MAX_POS_SIZE, posSize, startX, startY, startZ, 
             endX, endY, endZ, sizeX, sizeY, sizeZ);
     }
         
-    private native int findPathDefaultNative(long ptr, float[] posArray, int[] posSize,
+    private native int findPathDefaultNative(long ptr, float[] posArray, int arraySize, int[] posSize,
          float startX, float startY, float startZ,
          float endX, float endY, float endZ);
     public int findPath(float startX, float startY, float startZ,
          float endX, float endY, float endZ) {
         if (naviPtr == 0)
             return FAILURE;
-        return findPathDefaultNative(naviPtr, posArray, posSize, startX, startY, startZ, 
+        return findPathDefaultNative(naviPtr, posArray, MAX_POS_SIZE, posSize, startX, startY, startZ, 
             endX, endY, endZ);
     }
 }
