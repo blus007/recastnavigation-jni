@@ -7,6 +7,8 @@
 #include "Util.h"
 #include "Navi.h"
 
+COMPILE_TEST(JLONG_SIZE, sizeof(jlong) == 8);
+
 char* Jstring2String(JNIEnv* env, jstring jstr)
 {
 	char* str = nullptr;
@@ -38,17 +40,19 @@ jstring String2Jstring(JNIEnv* env, const char* str)
 	return (jstring)env->NewObject(jstringClass, methodID, byteArray, stringCode);
 }
 
-inline long Ptr2Long(void* ptr)
+inline long long Ptr2Long(void* ptr)
 {
-    long l = 0;
-    memcpy(&l, &ptr, sizeof(void*));
+    long long l = 0;
+    const int copySize = sizeof(void*);
+    memcpy(&l, &ptr, copySize);
     return l;
 }
 
-inline void* Long2Ptr(long l)
+inline void* Long2Ptr(long long l)
 {
     void* ptr = 0;
-    memcpy(&ptr, &l, sizeof(void*));
+    const int copySize = sizeof(void*);
+    memcpy(&ptr, &l, copySize);
     return ptr;
 }
 

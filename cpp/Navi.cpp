@@ -18,6 +18,7 @@
 
 // check if is 64bit
 COMPILE_TEST(BIT_SIZE, sizeof(void*) == 8);
+COMPILE_TEST(LONG_LONG_SIZE, sizeof(long long) == 8);
 COMPILE_TEST(POLY_REF_SIZE, sizeof(dtPolyRef) == 8);
 
 const int TILECACHESET_MAGIC = 'W'<<24 | 'L'<<16 | 'R'<<8 | 'D';

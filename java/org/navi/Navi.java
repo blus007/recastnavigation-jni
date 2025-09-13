@@ -60,6 +60,9 @@ public class Navi {
     public static final int MAX_SEARCH_POLYS = 1024;
 
     private static final Map<Long, Long> createdNavis = new ConcurrentHashMap<>();
+    public static final Map<Long, Long> getCreatedNavis() {
+        return createdNavis;
+    }
 
     public static boolean isFail(int status) {
         return (status & FAILURE) != 0;
@@ -71,6 +74,7 @@ public class Navi {
 
     private static native int getMaxPosSizeNative();
 
+    private long naviPtr = 0;
     private float[] posArray = new float[MAX_SEARCH_POLYS * 3];
     private int[] posSize = new int[1];
 
@@ -83,191 +87,157 @@ public class Navi {
         return posArray;
     }
 
-    private native long createNative(int maxPoly);
-    public long create() {
-        return create(MAX_SEARCH_POLYS);
+    public Navi() {
+        create(MAX_SEARCH_POLYS);
     }
-    public long create(int maxPoly) {
-        long naviPtr = createNative(maxPoly);
+
+    public Navi(int maxPoly) {
+        create(maxPoly);
+    }
+
+    public boolean isCreated() {
+        return naviPtr != 0;
+    }
+
+    private native long createNative(int maxPoly);
+    private void create(int maxPoly) {
+        if (naviPtr != 0) {
+            log.info("Create navi twice, ptr = {}", naviPtr);
+            return;
+        }
+        naviPtr = createNative(maxPoly);
         if (naviPtr != 0) {
             createdNavis.put(naviPtr, System.currentTimeMillis());
-            log.info("Create navi from create(int maxPoly), result = {}", naviPtr);
+            log.info("Create navi result = {}", naviPtr);
         } else {
-            log.info("Create a null navi from create(int maxPoly)");
+            log.info("Create a null navi");
         }
-        return naviPtr;
     }
     
     private native void destroyNative(long ptr);
-    public void destroy(long naviPtr) {
+    public void destroy() {
         if (naviPtr == 0) {
-            log.error("Destroy but navi is null");
+            log.error("Destroy a null navi");
             return;
         }
         if (createdNavis.containsKey(naviPtr)) {
             createdNavis.remove(naviPtr);
             log.info("Destroy navi = {}", naviPtr);
         } else {
+            naviPtr = 0;
             log.error("Destroy but not find navi = {}", naviPtr);
             return;
         }
         destroyNative(naviPtr);
+        naviPtr = 0;
     }
         
     private native void setDefaultPolySizeNative(long ptr, float x, float y, float z);
-    public void setDefaultPolySize(long naviPtr, float x, float y, float z) {
+    public void setDefaultPolySize(float x, float y, float z) {
         if (naviPtr == 0) {
             log.error("setDefaultPolySize but navi is null");
-            return;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("setDefaultPolySize but not find navi = {}", naviPtr);
             return;
         }
         setDefaultPolySizeNative(naviPtr, x, y, z);
     }
 
     private native boolean loadMeshNative(long ptr, String filePath, int maxSearchNodes);
-    public boolean loadMesh(long naviPtr, String filePath) {
-        return loadMesh(naviPtr, filePath, MAX_QUERY_INIT_NODE);
+    public boolean loadMesh(String filePath) {
+        return loadMesh(filePath, MAX_QUERY_INIT_NODE);
     }
-    public boolean loadMesh(long naviPtr, String filePath, int maxSearchNodes) {
+    public boolean loadMesh(String filePath, int maxSearchNodes) {
         if (naviPtr == 0) {
             log.error("loadMesh but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("loadMesh but not find navi = {}", naviPtr);
             return false;
         }
         return loadMeshNative(naviPtr, filePath, maxSearchNodes);
     }
         
     private native boolean loadDoorsNative(long ptr, String filePath);
-    public boolean loadDoors(long naviPtr, String filePath) {
+    public boolean loadDoors(String filePath) {
         if (naviPtr == 0) {
             log.error("loadDoors but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("loadDoors but not find navi = {}", naviPtr);
             return false;
         }
         return loadDoorsNative(naviPtr, filePath);
     }
 
     private native boolean loadRegionsNative(long ptr, String filePath);
-    public boolean loadRegions(long naviPtr, String filePath) {
+    public boolean loadRegions(String filePath) {
         if (naviPtr == 0) {
             log.error("loadRegions but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("loadRegions but not find navi = {}", naviPtr);
             return false;
         }
         return loadRegionsNative(naviPtr, filePath);
     }
     
     private native int getRegionIdNative(long ptr, float x, float z);
-    public int getRegionId(long naviPtr, float x, float z) {
+    public int getRegionId(float x, float z) {
         if (naviPtr == 0) {
             log.error("getRegionId but navi is null");
-            return 0;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("getRegionId but not find navi = {}", naviPtr);
             return 0;
         }
         return getRegionIdNative(naviPtr, x, z);
     }
 
     private native void initDoorsPolyNative(long ptr);
-    public void initDoorsPoly(long naviPtr) {
+    public void initDoorsPoly() {
         if (naviPtr == 0) {
             log.error("initDoorsPoly but navi is null");
-            return;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("initDoorsPoly but not find navi = {}", naviPtr);
             return;
         }
         initDoorsPolyNative(naviPtr);
     }
 
     private native boolean isDoorExistNative(long ptr, int doorId);
-    public boolean isDoorExist(long naviPtr, int doorId) {
+    public boolean isDoorExist(int doorId) {
         if (naviPtr == 0) {
             log.error("isDoorExist but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("isDoorExist but not find navi = {}", naviPtr);
             return false;
         }
         return isDoorExistNative(naviPtr, doorId);
     }
         
     private native boolean isDoorOpenNative(long ptr, int doorId);
-    public boolean isDoorOpen(long naviPtr, int doorId) {
+    public boolean isDoorOpen(int doorId) {
         if (naviPtr == 0) {
             log.error("isDoorOpen but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("isDoorOpen but not find navi = {}", naviPtr);
             return false;
         }
         return isDoorOpenNative(naviPtr, doorId);
     }
 
     private native void openDoorNative(long ptr, int doorId, boolean open);
-    public void openDoor(long naviPtr, int doorId, boolean open) {
+    public void openDoor(int doorId, boolean open) {
         if (naviPtr == 0) {
             log.error("openDoor but navi is null");
-            return;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("openDoor but not find navi = {}", naviPtr);
             return;
         }
         openDoorNative(naviPtr, doorId, open);
     }
         
     private native void openAllDoorsNative(long ptr, boolean open);
-    public void openAllDoors(long naviPtr, boolean open) {
+    public void openAllDoors(boolean open) {
         if (naviPtr == 0) {
             log.error("openAllDoors but navi is null");
-            return;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("openAllDoors but not find navi = {}", naviPtr);
             return;
         }
         openAllDoorsNative(naviPtr, open);
     }
 
     private native void closeAllDoorsPolyNative(long ptr);
-    public void closeAllDoorsPoly(long naviPtr) {
+    public void closeAllDoorsPoly() {
         if (naviPtr == 0) {
             log.error("closeAllDoorsPoly but navi is null");
-            return;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("closeAllDoorsPoly but not find navi = {}", naviPtr);
             return;
         }
         closeAllDoorsPolyNative(naviPtr);
     }
 
     private native void recoverAllDoorsPolyNative(long ptr);
-    public void recoverAllDoorsPoly(long naviPtr) {
+    public void recoverAllDoorsPoly() {
         if (naviPtr == 0) {
             log.error("recoverAllDoorsPoly but navi is null");
-            return;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("recoverAllDoorsPoly but not find navi = {}", naviPtr);
             return;
         }
         recoverAllDoorsPolyNative(naviPtr);
@@ -276,91 +246,63 @@ public class Navi {
     private native int addObstacleNative(long ptr,
          float posX, float posY, float posZ,
          float radius, float height);
-    public int addObstacle(long naviPtr, float posX, float posY, float posZ,
+    public int addObstacle(float posX, float posY, float posZ,
          float radius, float height) {
         if (naviPtr == 0) {
             log.error("addObstacle but navi is null");
             return 0;
         }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("addObstacle but not find navi = {}", naviPtr);
-            return 0;
-        }
         return addObstacleNative(naviPtr, posX, posY, posZ, radius, height);
     }
-    public int addObstacleOffset(long naviPtr, float posX, float posY, float posZ,
+    public int addObstacleOffset(float posX, float posY, float posZ,
          float radius, float height) {
         if (naviPtr == 0) {
             log.error("addObstacleOffset but navi is null");
-            return 0;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("addObstacleOffset but not find navi = {}", naviPtr);
             return 0;
         }
         return addObstacleNative(naviPtr, posX, posY - 1.0f, posZ, radius, height + 1.0f);
     }
         
     private native boolean removeObstacleNative(long ptr, int obstacleRef);
-    public boolean removeObstacle(long naviPtr, int obstacleRef) {
+    public boolean removeObstacle(int obstacleRef) {
         if (naviPtr == 0) {
             log.error("removeObstacle but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("removeObstacle but not find navi = {}", naviPtr);
             return false;
         }
         return removeObstacleNative(naviPtr, obstacleRef);
     }
         
     private native boolean refreshObstacleNative(long ptr);
-    public boolean refreshObstacle(long naviPtr) {
+    public boolean refreshObstacle() {
         if (naviPtr == 0) {
             log.error("refreshObstacle but navi is null");
-            return false;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("refreshObstacle but not find navi = {}", naviPtr);
             return false;
         }
         return refreshObstacleNative(naviPtr);
     }
 
     private native int getMaxObstacleReqCountNative(long ptr);
-    public int getMaxObstacleReqCount(long naviPtr) {
+    public int getMaxObstacleReqCount() {
         if (naviPtr == 0) {
             log.error("getMaxObstacleReqCount but navi is null");
-            return 0;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("getMaxObstacleReqCount but not find navi = {}", naviPtr);
             return 0;
         }
         return getMaxObstacleReqCountNative(naviPtr);
     }
 
     private native int getAddedObstacleReqCountNative(long ptr);
-    public int getAddedObstacleReqCount(long naviPtr) {
+    public int getAddedObstacleReqCount() {
         if (naviPtr == 0) {
             log.error("getAddedObstacleReqCount but navi is null");
-            return 0;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("getAddedObstacleReqCount but not find navi = {}", naviPtr);
             return 0;
         }
         return getAddedObstacleReqCountNative(naviPtr);
     }
 
     private native int getObstacleReqRemainCountNative(long ptr);
-    public int getObstacleReqRemainCount(long naviPtr) {
+    public int getObstacleReqRemainCount() {
         if (naviPtr == 0) {
             log.error("getObstacleReqRemainCount but navi is null");
-            return 0;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("getObstacleReqRemainCount but not find navi = {}", naviPtr);
             return 0;
         }
         return getObstacleReqRemainCountNative(naviPtr);
@@ -370,15 +312,11 @@ public class Navi {
          float startX, float startY, float startZ,
          float endX, float endY, float endZ,
          float sizeX, float sizeY, float sizeZ);
-    public int findPath(long naviPtr, float startX, float startY, float startZ,
+    public int findPath(float startX, float startY, float startZ,
          float endX, float endY, float endZ,
          float sizeX, float sizeY, float sizeZ) {
         if (naviPtr == 0) {
             log.error("findPath but navi is null");
-            return FAILURE;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("findPath but not find navi = {}", naviPtr);
             return FAILURE;
         }
         return findPathNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
@@ -388,14 +326,10 @@ public class Navi {
     private native int findPathDefaultNative(long ptr, float[] posArray, int arraySize, int[] posSize,
          float startX, float startY, float startZ,
          float endX, float endY, float endZ);
-    public int findPath(long naviPtr, float startX, float startY, float startZ,
+    public int findPath(float startX, float startY, float startZ,
          float endX, float endY, float endZ) {
         if (naviPtr == 0) {
             log.error("findPath default but navi is null");
-            return FAILURE;
-        }
-        if (!createdNavis.containsKey(naviPtr)) {
-            log.error("findPath  default but not find navi = {}", naviPtr);
             return FAILURE;
         }
         return findPathDefaultNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
