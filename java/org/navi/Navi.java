@@ -1,9 +1,45 @@
 package org.navi;
 
+import lombok.extern.slf4j.Slf4j;
+import java.nio.file.Paths;
+
+@Slf4j
 public class Navi {
+    public static final int SYSTEM_NONE = 0;
+    public static final int SYSTEM_WINDOWS = 1;
+    public static final int SYSTEM_LINUX = 2;
+    public static final int SYSTEM_MAC = 3;
+
+    public static int getSystem() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("win")) {
+            return SYSTEM_WINDOWS;
+        } else if (osName.contains("nix") || osName.contains("nux") || osName.contains("aix")) {
+            return SYSTEM_LINUX;
+        } else if (osName.contains("mac")) {
+            return SYSTEM_MAC;
+        } else {
+            return SYSTEM_NONE;
+        }
+    }
+
     static {
-        System.loadLibrary("RecastJni");
-        //System.out.println(String.format("getMaxPosSizeNative=%d", getMaxPosSizeNative()));
+        log.info("Start load navi library =============================");
+        int system = getSystem();
+        String pwd = System.getProperty("user.dir");
+        String libPath;
+        if (system == SYSTEM_WINDOWS) {
+            libPath = Paths.get(pwd, "Lib", "Windows", "RecastJni.dll").toString();
+        } else if (system == SYSTEM_LINUX) {
+            libPath = Paths.get(pwd, "Lib", "Linux", "libRecastJni.so").toString();
+        } else if (system == SYSTEM_MAC) {
+            libPath = Paths.get(pwd, "Lib", "Mac", "libRecastJni.so").toString();
+        } else {
+            String osName = System.getProperty("os.name");
+            throw new RuntimeException("Unsupported system: " + osName);
+        }
+        System.loadLibrary(libPath);
+        log.info("Load navi library success =============================");
     }
 
     // level:0-debug 1-warning 2-error
@@ -17,6 +53,8 @@ public class Navi {
 
     public static final int FAILURE = 1 << 31; // Operation failed.
     public static final int SUCCESS = 1 << 30; // Operation succeed.
+    public static final int MAX_QUERY_INIT_NODE = 65535;
+    public static final int MAX_SEARCH_POLYS = 1024;
 
     public static boolean isFail(int status) {
         return (status & FAILURE) != 0;
@@ -50,9 +88,9 @@ public class Navi {
     public void init() {
         if (naviPtr != 0)
             destroyNative(naviPtr);
-        naviPtr = createNative(1024);
+        naviPtr = createNative(MAX_SEARCH_POLYS);
     }
-    public void init(maxPoly) {
+    public void init(int maxPoly) {
         if (naviPtr != 0)
             destroyNative(naviPtr);
         naviPtr = createNative(maxPoly);
@@ -72,11 +110,11 @@ public class Navi {
         setDefaultPolySizeNative(naviPtr, x, y, z);
     }
 
-    private native boolean loadMeshNative(long ptr, String filePath);
+    private native boolean loadMeshNative(long ptr, String filePath, int maxSearchNodes);
     public boolean loadMesh(String filePath) {
         if (naviPtr == 0)
             return false;
-        return loadMeshNative(naviPtr, filePath, 65535);
+        return loadMeshNative(naviPtr, filePath, MAX_QUERY_INIT_NODE);
     }
     public boolean loadMesh(String filePath, int maxSearchNodes) {
         if (naviPtr == 0)
@@ -186,21 +224,21 @@ public class Navi {
 
     private native int getMaxObstacleReqCountNative(long ptr);
     public int getMaxObstacleReqCount() {
-    	if (naviPtr == 0)
+        if (naviPtr == 0)
             return 0;
         return getMaxObstacleReqCountNative(naviPtr);
     }
 
     private native int getAddedObstacleReqCountNative(long ptr);
     public int getAddedObstacleReqCount() {
-    	if (naviPtr == 0)
+        if (naviPtr == 0)
             return 0;
         return getAddedObstacleReqCountNative(naviPtr);
     }
 
     private native int getObstacleReqRemainCountNative(long ptr);
     public int getObstacleReqRemainCount() {
-    	if (naviPtr == 0)
+        if (naviPtr == 0)
             return 0;
         return getObstacleReqRemainCountNative(naviPtr);
     }
