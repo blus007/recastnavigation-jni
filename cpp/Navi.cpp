@@ -11,10 +11,10 @@
 #include "Recast.h"
 #include "fastlz.h"
 #include "Filelist.h"
-#include "Navi.h"
 #include "nlohmann/json.hpp"
 #include <fstream>
 #include "Util.h"
+#include "Navi.h"
 
 // check if is 64bit
 COMPILE_TEST(BIT_SIZE, sizeof(void*) == 8);

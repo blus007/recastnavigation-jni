@@ -3,3 +3,4 @@
 /java/**/*.class
 
 /build/
+/build_*/

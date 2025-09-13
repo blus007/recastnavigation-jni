@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 
 if (WIN32 AND NOT CYGWIN AND NOT ( CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" ) AND NOT ANDROID)
 	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT" CACHE STRING "")
@@ -30,6 +30,11 @@ else()
     endif()
 endif()
 
+if (UNIX)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+endif()
+
 set(JAVA_HOME $ENV{JAVA_HOME})
 if (NOT JAVA_HOME)
     message(FATAL_ERROR "Cannot find JAVA_HOME in the environment")
@@ -54,7 +59,9 @@ add_subdirectory(${RECAST_DIR}/Detour)
 add_subdirectory(${RECAST_DIR}/DetourTileCache)
 add_subdirectory(${RECAST_DIR}/DetourCrowd)
 add_subdirectory(${RECAST_DIR}/Recast)
-add_subdirectory(${RECAST_DIR}/RecastDemo)
+if (MSVC)
+    add_subdirectory(${RECAST_DIR}/RecastDemo)
+endif()
 
 
 include_directories(${RECAST_DIR}/QuadTree/Include)
