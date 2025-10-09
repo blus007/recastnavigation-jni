@@ -49,6 +49,7 @@ void GameVolume::CalcAABB()
     aabb.SetSize(maxX - minX, maxZ - minZ);
 }
 
+// verts order is counter clockwise
 bool GameVolume::IsContain(float x, float z) const
 {
     const int vertSize = (const int)verts.size();
@@ -61,7 +62,7 @@ bool GameVolume::IsContain(float x, float z) const
         const float bx = b.x - a.x;
         const float bz = b.z - a.z;
         const float result = cz * bx - cx * bz;
-        if (result <= 0)
+        if (result < 0)
             return false;
     }
     return true;

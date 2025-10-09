@@ -4,8 +4,9 @@ import org.navi.Navi;
 
 public class Main {
     public static void main(String[] args) {
+        Navi.init();
+        
         Navi navi = new Navi();
-        navi.init();
 
         boolean success = navi.loadMesh("../thirdparty/recastnavigation/RecastDemo/Bin/Output/nav_test_obs_navi.bin");
         System.out.println(String.format("load mesh %s", success ? "success" : "fail"));
