@@ -62,6 +62,20 @@ struct Vector3
     ,z(other.z)
     {}
 
+    inline void Set(float inX, float inY, float inZ)
+    {
+        x = inX;
+        y = inY;
+        z = inZ;
+    }
+
+    inline void Set(const Vector3& other)
+    {
+        x = other.x;
+        y = other.y;
+        z = other.z;
+    }
+
     inline double Length()
     {
         double dist2 = x * x + y * y + z * z;
@@ -173,6 +187,8 @@ class NAVI_API Navi
     dtPolyRef* mSearchPolys;
     int mSearchedPolyCount;
     Vector3* mPath;
+    dtPolyRef* mPathPolys;
+    bool* mPathRemoves;
     int mPathCount;
     int mMaxPolys;
     
@@ -205,6 +221,7 @@ class NAVI_API Navi
     bool FindProvince(const Vector3& pos, std::vector<int>& provinces);
     bool WalkablePoly(const dtPolyRef polyRef);
     void MakePathOutOfBlock(const Vector3& polySize);
+    void StraightenPath();
     
 public:
     Navi(int maxPoly);

@@ -234,6 +234,8 @@ Navi::Navi(int maxPolys)
     
     mSearchPolys = new dtPolyRef[mMaxPolys];
     mPath = new Vector3[mMaxPolys];
+    mPathPolys = new dtPolyRef[mMaxPolys];
+    mPathRemoves = new bool[mMaxPolys];
 }
 
 Navi::~Navi()
@@ -869,6 +871,53 @@ void Navi::MakePathOutOfBlock(const Vector3& polySize)
     }
 }
 
+void Navi::StraightenPath()
+{
+    if (mPathCount <= 2)
+        return;
+    bool* removes = mPathRemoves;
+    memset(removes, 0, sizeof(bool) * mPathCount);
+    int removeCount = 0;
+    int maxFrom = mPathCount - 2;
+    float* path = (float*)mPath;
+    for (int i = 0; i < maxFrom; ++i)
+    {
+        dtPolyRef fromRef = mPathPolys[i];
+        int j = i + 2;
+        for (; j < mPathCount; ++j)
+        {
+            float t = 0;
+            dtStatus rayStatus = mNavQuery->raycast(fromRef, path + i * 3, path + j * 3, mPathFilter,
+                &t, nullptr, mSearchPolys, &mSearchedPolyCount, mMaxPolys);
+            if (dtStatusSucceed(rayStatus) && t > 1)
+            {
+                removes[j - 1] = true;
+                ++removeCount;
+                continue;
+            }
+            break;
+        }
+        i = j - 2;
+    }
+    if (!removeCount)
+        return;
+    int count = mPathCount - removeCount;
+    int src = 0;
+    for (int i = 0; i < count; ++i, ++src)
+    {
+        for (; src < mPathCount; ++src)
+        {
+            if (!removes[src])
+                break;
+        }
+        if (i == src)
+            continue;
+        memcpy(path + i * 3, path + src * 3, sizeof(float) * 3);
+        mPathPolys[i] = mPathPolys[src];
+    }
+    mPathCount = count;
+}
+
 int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)
 {
     if (!mNavMesh || !mNavQuery)
@@ -941,7 +990,8 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
             mNavQuery->closestPointOnPoly(mSearchPolys[mSearchedPolyCount - 1], endPtr, epos, nullptr);
         
         mNavQuery->findStraightPath(startPtr, epos, mSearchPolys, mSearchedPolyCount,
-                                     (float*)mPath, nullptr, nullptr, &mPathCount, mMaxPolys, 0);
+                                     (float*)mPath, nullptr, mPathPolys, &mPathCount, mMaxPolys, 0);
+        StraightenPath();
         MakePathOutOfBlock(polySize);
         if (mPathCount > 1 && exchanged)
         {

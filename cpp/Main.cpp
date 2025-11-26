@@ -147,6 +147,8 @@ int main(int argc, char* argv[])
 //    pos = (56.010685,-2.069517,9.799850)
 //    pos = (54.510685,-1.869517,13.099851)
 //    pos = (49.161545,-2.333637,18.967161)
+    start.Set(54.972977, -2.378546, 4.959251);
+    end.Set(49.161545, -2.333637, 18.967161);
     success = navi.FindPath(start, end);
     printf("find path open door add obstacle success = %s\n", dtStatusSucceed(success) ? "success" : "fail");
     printf("find path count = %d\n", navi.GetPathCount());
