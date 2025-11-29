@@ -99,13 +99,13 @@ public class Navi {
         return naviPtr != 0;
     }
 
-    private native long createNative(int maxPoly);
-    private void create(int maxPoly) {
+    private native long createNative(int maxPoly, int maxObstacle);
+    private void create(int maxPoly, int maxObstacle) {
         if (naviPtr != 0) {
             log.info("Create navi twice, ptr = {}", naviPtr);
             return;
         }
-        naviPtr = createNative(maxPoly);
+        naviPtr = createNative(maxPoly, maxObstacle);
         if (naviPtr != 0) {
             createdNavis.put(naviPtr, System.currentTimeMillis());
             log.info("Create navi result = {}", naviPtr);

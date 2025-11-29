@@ -191,6 +191,7 @@ class NAVI_API Navi
     bool* mPathRemoves;
     int mPathCount;
     int mMaxPolys;
+    int mMaxObstacles;
     
     Vector3 mDefaultPolySize;
     
@@ -224,7 +225,7 @@ class NAVI_API Navi
     void StraightenPath();
     
 public:
-    Navi(int maxPoly);
+    Navi(int maxPoly, int maxObstacles);
     ~Navi();
     
     inline void SetDefaultPolySize(float x, float y, float z)

@@ -97,7 +97,8 @@ int main(int argc, char* argv[])
     }
     
     printf("%s", RECAST_BIN"/Output/nav_test_obs_navi.bin\n");
-    Navi navi(MAX_SEARCH_POLYS);
+    int maxObstacles = -1;
+    Navi navi(MAX_SEARCH_POLYS, maxObstacles);
     int success = navi.LoadMesh(RECAST_BIN"/Output/nav_test_obs_navi.bin", MAX_SEARCH_POLYS);
     printf("load navi success = %s\n", success ? "success" : "fail");
     success = navi.LoadDoors(RECAST_BIN"/Output/nav_test.door");

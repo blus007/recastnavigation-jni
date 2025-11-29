@@ -69,11 +69,11 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_getMaxPosSizeNative
 }
     
 JNIEXPORT jlong JNICALL Java_org_navi_Navi_createNative
-    (JNIEnv *env, jobject obj, jint maxPoly)
+    (JNIEnv *env, jobject obj, jint maxPoly, jint maxObstacle)
 {
     JAVA_ENV_INIT(env);
     //printf("Java_org_navi_Navi_createNative:env=%p obj=%p\n", env, obj);
-    Navi* navi = new Navi(maxPoly);
+    Navi* navi = new Navi(maxPoly, maxObstacle);
     jlong ptr = Ptr2Long(navi);
     return ptr;
 }

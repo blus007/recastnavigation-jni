@@ -212,14 +212,15 @@ MeshProcess::~MeshProcess()
 
 /////////////////////////////////////////////////////////////////
 // Navi
-Navi::Navi(int maxPolys)
+Navi::Navi(int maxPolys, int maxObstacles)
 :mNavMesh(nullptr)
 ,mNavQuery(nullptr)
 ,mTileCache(nullptr)
 ,mSearchedPolyCount(0)
 ,mPathCount(0)
 ,mDefaultPolySize(0, 6, 0)
-, mMaxPolys(maxPolys)
+,mMaxPolys(maxPolys)
+,mMaxObstacles(maxObstacles)
 {
     mAlloc = new LinearAllocator(32000);
     mComp = new FastLZCompressor;
@@ -318,6 +319,10 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
         fclose(fp);
         return false;
     }
+    if (mMaxObstacles >= 0)
+        header.cacheParams.maxObstacles = mMaxObstacles;
+    if (header.cacheParams.maxObstacles < 1)
+        header.cacheParams.maxObstacles = 1;
     
     mNavMesh = dtAllocNavMesh();
     if (!mNavMesh)
