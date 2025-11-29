@@ -44,6 +44,29 @@ struct TestStruct
     }
 };
 
+void testStraighten(Navi& navi, int insertIndex)
+{
+    int pathCount = navi.GetPathCount();
+    Vector3* modifyPath = (Vector3*)navi.GetPath();
+    int copyStart = insertIndex;
+    for (int i = pathCount - 1; i >= copyStart; --i)
+    {
+        modifyPath[i + 1].Set(modifyPath[i]);
+    }
+    modifyPath[insertIndex].Set((modifyPath[insertIndex - 1].x + modifyPath[insertIndex + 1].x) * 0.5f,
+        (modifyPath[insertIndex - 1].y + modifyPath[insertIndex + 1].y) * 0.5f,
+        (modifyPath[insertIndex - 1].z + modifyPath[insertIndex + 1].z) * 0.5f);
+    ++pathCount;
+    printf("need make straight path count = %d\n", pathCount);
+    for (int i = 0; i < pathCount; ++i) {
+        printf("pos = (%f,%f,%f)\n", modifyPath[i].x, modifyPath[i].y, modifyPath[i].z);
+    }
+    navi.MakePathStraight(pathCount, (float*)modifyPath);
+    printf("made straight path count = %d\n", pathCount);
+    for (int i = 0; i < pathCount; ++i) {
+        printf("pos = (%f,%f,%f)\n", modifyPath[i].x, modifyPath[i].y, modifyPath[i].z);
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -122,6 +145,7 @@ int main(int argc, char* argv[])
     for (int i = 0; i < navi.GetPathCount(); ++i) {
         printf("pos = (%f,%f,%f)\n", path[i].x, path[i].y, path[i].z);
     }
+    testStraighten(navi, navi.GetPathCount() - 1);
     
 //    51.1867447, -1.80287552, -24.2468395f
 //    40.9090157, -1.78335953, -25.2743912
@@ -144,8 +168,7 @@ int main(int argc, char* argv[])
     navi.InitDoorsPoly();
     navi.RecoverAllDoorsPoly();
 //    pos = (54.972977,-2.378546,4.959251)
-//    pos = (56.010685,-2.269517,6.799850)
-//    pos = (56.010685,-2.069517,9.799850)
+//    pos = (54.804802,-2.030301,11.299850)
 //    pos = (54.510685,-1.869517,13.099851)
 //    pos = (49.161545,-2.333637,18.967161)
     start.Set(54.972977, -2.378546, 4.959251);
@@ -157,4 +180,5 @@ int main(int argc, char* argv[])
     for (int i = 0; i < navi.GetPathCount(); ++i) {
         printf("pos = (%f,%f,%f)\n", path[i].x, path[i].y, path[i].z);
     }
+    testStraighten(navi, 1);
 }

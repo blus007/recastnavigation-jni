@@ -335,4 +335,23 @@ public class Navi {
         return findPathDefaultNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
             endX, endY, endZ);
     }
+
+    private native int makePathStraightNative(long ptr, float[] posArray, int arraySize,
+         float sizeX, float sizeY, float sizeZ);
+    public int makePathStraight(float[] posArray, int arraySize, float sizeX, float sizeY, float sizeZ) {
+        if (naviPtr == 0) {
+            log.error("makePathStraight but navi is null");
+            return FAILURE;
+        }
+        return makePathStraightNative(naviPtr, posArray, arraySize, sizeX, sizeY, sizeZ);
+    }
+
+    private native int makePathStraightDefaultNative(long ptr, float[] posArray, int arraySize);
+    public int makePathStraightDefault(float[] posArray, int arraySize) {
+        if (naviPtr == 0) {
+            log.error("makePathStraightDefault but navi is null");
+            return FAILURE;
+        }
+        return makePathStraightDefaultNative(naviPtr, posArray, arraySize);
+    }
 }

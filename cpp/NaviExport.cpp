@@ -345,6 +345,42 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_findPathDefaultNative
     return result;
 }
 
+JNIEXPORT jint JNICALL Java_org_navi_Navi_makePathStraightNative
+(JNIEnv* env, jobject obj, jlong ptr, jfloatArray posArray, jint arraySize,
+    jfloat sizeX, jfloat sizeY, jfloat sizeZ)
+{
+    JAVA_ENV_INIT(env);
+    if (!ptr)
+        return DT_FAILURE;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3 size(sizeX, sizeY, sizeZ);
+    Vector3* path = (Vector3*)navi->GetPath();
+    env->GetFloatArrayRegion(posArray, 0, arraySize * 3, (jfloat*)path);
+    int pathCount = arraySize;
+    navi->MakePathStraight(pathCount, (float*)path, size);
+    if (pathCount < arraySize)
+        env->SetFloatArrayRegion(posArray, 0, pathCount * 3, (const jfloat*)path);
+
+    return pathCount;
+}
+
+JNIEXPORT jint JNICALL Java_org_navi_Navi_makePathStraightDefaultNative
+(JNIEnv* env, jobject obj, jlong ptr, jfloatArray posArray, jint arraySize)
+{
+    JAVA_ENV_INIT(env);
+    if (!ptr)
+        return DT_FAILURE;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3* path = (Vector3*)navi->GetPath();
+    env->GetFloatArrayRegion(posArray, 0, arraySize * 3, (jfloat*)path);
+    int pathCount = arraySize;
+    navi->MakePathStraight(pathCount, (float*)path);
+    if (pathCount < arraySize)
+        env->SetFloatArrayRegion(posArray, 0, pathCount * 3, (const jfloat*)path);
+
+    return pathCount;
+}
+
 #ifdef __cplusplus
 }
 #endif

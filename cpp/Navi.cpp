@@ -923,6 +923,58 @@ void Navi::StraightenPath()
     mPathCount = count;
 }
 
+void Navi::MakePathStraight(int& pathCount, float* path, const Vector3& polySize)
+{
+    if (pathCount <= 2)
+        return;
+    bool* removes = mPathRemoves;
+    memset(removes, 0, sizeof(bool) * pathCount);
+    int removeCount = 0;
+    int maxFrom = pathCount - 2;
+    for (int i = 0; i < maxFrom; ++i)
+    {
+        dtPolyRef fromRef;
+        float* start = path + i * 3;
+        dtStatus status = mNavQuery->findNearestPoly(start, (float*)&polySize, mPathFilter, &fromRef, nullptr);
+        if (!dtStatusSucceed(status))
+        {
+            LOG_ERROR("Cannot find from poly (%f, %f, %f)", start[0], start[1], start[2]);
+            return;
+        }
+        int j = i + 2;
+        for (; j < pathCount; ++j)
+        {
+            float t = 0;
+            dtStatus rayStatus = mNavQuery->raycast(fromRef, path + i * 3, path + j * 3, mPathFilter,
+                &t, nullptr, mSearchPolys, &mSearchedPolyCount, mMaxPolys);
+            if (dtStatusSucceed(rayStatus) && t > 1)
+            {
+                removes[j - 1] = true;
+                ++removeCount;
+                continue;
+            }
+            break;
+        }
+        i = j - 2;
+    }
+    if (!removeCount)
+        return;
+    int count = pathCount - removeCount;
+    int src = 0;
+    for (int i = 0; i < count; ++i, ++src)
+    {
+        for (; src < pathCount; ++src)
+        {
+            if (!removes[src])
+                break;
+        }
+        if (i == src)
+            continue;
+        memcpy(path + i * 3, path + src * 3, sizeof(float) * 3);
+    }
+    pathCount = count;
+}
+
 int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& polySize)
 {
     if (!mNavMesh || !mNavQuery)

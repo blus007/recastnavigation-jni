@@ -345,4 +345,9 @@ public:
     }
     inline const int GetPathCount() { return mPathCount; }
     inline const Vector3* GetPath() { return mPath; }
+    void MakePathStraight(int& pathCount, float* path, const Vector3& polySize);
+    inline void MakePathStraight(int& pathCount, float* path)
+    {
+        return MakePathStraight(pathCount, path, mDefaultPolySize);
+    }
 };
