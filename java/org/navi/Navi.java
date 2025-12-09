@@ -13,6 +13,16 @@ public class Navi {
     public static final int SYSTEM_LINUX = 2;
     public static final int SYSTEM_MAC = 3;
 
+    // static class Log {
+    //     void info(String s) {}
+    //     void info(String s, Object o1) {}
+    //     void warn(String s) {}
+    //     void warn(String s, Object o1) {}
+    //     void error(String s) {}
+    //     void error(String s, Object o1) {}
+    // }
+    // public static final Log log = new Log();
+
     public static int getSystem() {
         String osName = System.getProperty("os.name").toLowerCase();
         if (osName.contains("win")) {
@@ -88,11 +98,11 @@ public class Navi {
     }
 
     public Navi() {
-        create(MAX_SEARCH_POLYS);
+        create(MAX_SEARCH_POLYS, 0);
     }
 
-    public Navi(int maxPoly) {
-        create(maxPoly);
+    public Navi(int maxPoly, int maxObstacle) {
+        create(maxPoly, maxObstacle);
     }
 
     public boolean isCreated() {
@@ -341,7 +351,7 @@ public class Navi {
     public int makePathStraight(float[] posArray, int arraySize, float sizeX, float sizeY, float sizeZ) {
         if (naviPtr == 0) {
             log.error("makePathStraight but navi is null");
-            return FAILURE;
+            return arraySize;
         }
         return makePathStraightNative(naviPtr, posArray, arraySize, sizeX, sizeY, sizeZ);
     }
@@ -350,8 +360,64 @@ public class Navi {
     public int makePathStraightDefault(float[] posArray, int arraySize) {
         if (naviPtr == 0) {
             log.error("makePathStraightDefault but navi is null");
-            return FAILURE;
+            return arraySize;
         }
         return makePathStraightDefaultNative(naviPtr, posArray, arraySize);
+    }
+
+    private native float pathRaycastNative(long ptr,
+         float startX, float startY, float startZ,
+         float endX, float endY, float endZ,
+         float sizeX, float sizeY, float sizeZ);
+    public float pathRaycast(float startX, float startY, float startZ,
+         float endX, float endY, float endZ,
+         float sizeX, float sizeY, float sizeZ) {
+        if (naviPtr == 0) {
+            log.error("pathRaycast but navi is null");
+            return -1.0f;
+        }
+        return pathRaycastNative(naviPtr, startX, startY, startZ,
+            endX, endY, endZ, sizeX, sizeY, sizeZ);
+    }
+
+    private native float pathRaycastDefaultNative(long ptr,
+         float startX, float startY, float startZ,
+         float endX, float endY, float endZ);
+    public float pathRaycastDefault(float startX, float startY, float startZ,
+         float endX, float endY, float endZ) {
+        if (naviPtr == 0) {
+            log.error("pathRaycastDefault but navi is null");
+            return -1.0f;
+        }
+        return pathRaycastDefaultNative(naviPtr, startX, startY, startZ,
+            endX, endY, endZ);
+    }
+
+    private native boolean canPathForwardNative(long ptr,
+         float startX, float startY, float startZ,
+         float endX, float endY, float endZ,
+         float sizeX, float sizeY, float sizeZ);
+    public boolean canPathForward(float startX, float startY, float startZ,
+         float endX, float endY, float endZ,
+         float sizeX, float sizeY, float sizeZ) {
+        if (naviPtr == 0) {
+            log.error("canPathForward but navi is null");
+            return false;
+        }
+        return canPathForwardNative(naviPtr, startX, startY, startZ,
+            endX, endY, endZ, sizeX, sizeY, sizeZ);
+    }
+
+    private native boolean canPathForwardDefaultNative(long ptr,
+         float startX, float startY, float startZ,
+         float endX, float endY, float endZ);
+    public boolean canPathForwardDefault(float startX, float startY, float startZ,
+         float endX, float endY, float endZ) {
+        if (naviPtr == 0) {
+            log.error("canPathForwardDefault but navi is null");
+            return false;
+        }
+        return canPathForwardDefaultNative(naviPtr, startX, startY, startZ,
+            endX, endY, endZ);
     }
 }

@@ -350,4 +350,19 @@ public:
     {
         return MakePathStraight(pathCount, path, mDefaultPolySize);
     }
+    float PathRaycast(const Vector3& start, const Vector3& end, const Vector3& polySize);
+    inline float PathRaycast(const Vector3& start, const Vector3& end)
+    {
+        return PathRaycast(start, end, mDefaultPolySize);
+    }
+    inline bool CanPathForward(const Vector3& start, const Vector3& end, const Vector3& polySize)
+    {
+        float t = PathRaycast(start, end, polySize);
+        return t > 1.0f;
+    }
+    inline bool CanPathForward(const Vector3& start, const Vector3& end)
+    {
+        float t = PathRaycast(start, end, mDefaultPolySize);
+        return t > 1.0f;
+    }
 };

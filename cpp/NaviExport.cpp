@@ -351,7 +351,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_makePathStraightNative
 {
     JAVA_ENV_INIT(env);
     if (!ptr)
-        return DT_FAILURE;
+        return arraySize;
     Navi* navi = (Navi*)Long2Ptr(ptr);
     Vector3 size(sizeX, sizeY, sizeZ);
     Vector3* path = (Vector3*)navi->GetPath();
@@ -369,7 +369,7 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_makePathStraightDefaultNative
 {
     JAVA_ENV_INIT(env);
     if (!ptr)
-        return DT_FAILURE;
+        return arraySize;
     Navi* navi = (Navi*)Long2Ptr(ptr);
     Vector3* path = (Vector3*)navi->GetPath();
     env->GetFloatArrayRegion(posArray, 0, arraySize * 3, (jfloat*)path);
@@ -379,6 +379,60 @@ JNIEXPORT jint JNICALL Java_org_navi_Navi_makePathStraightDefaultNative
         env->SetFloatArrayRegion(posArray, 0, pathCount * 3, (const jfloat*)path);
 
     return pathCount;
+}
+
+JNIEXPORT jfloat JNICALL Java_org_navi_Navi_pathRaycastNative
+(JNIEnv* env, jobject obj, jlong ptr, jfloat startX, jfloat startY, jfloat startZ,
+    jfloat endX, jfloat endY, jfloat endZ, jfloat sizeX, jfloat sizeY, jfloat sizeZ)
+{
+    JAVA_ENV_INIT(env);
+    if (!ptr)
+        return -1.0f;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3 start(startX, startY, startZ);
+    Vector3 end(endX, endY, endZ);
+    Vector3 size(sizeX, sizeY, sizeZ);
+    return navi->PathRaycast(start, end, size);
+}
+
+JNIEXPORT jfloat JNICALL Java_org_navi_Navi_pathRaycastDefaultNative
+(JNIEnv* env, jobject obj, jlong ptr, jfloat startX, jfloat startY, jfloat startZ,
+    jfloat endX, jfloat endY, jfloat endZ)
+{
+    JAVA_ENV_INIT(env);
+    if (!ptr)
+        return -1.0f;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3 start(startX, startY, startZ);
+    Vector3 end(endX, endY, endZ);
+    return navi->PathRaycast(start, end);
+}
+
+JNIEXPORT jboolean JNICALL Java_org_navi_Navi_canPathForwardNative
+(JNIEnv* env, jobject obj, jlong ptr, jfloat startX, jfloat startY, jfloat startZ,
+    jfloat endX, jfloat endY, jfloat endZ, jfloat sizeX, jfloat sizeY, jfloat sizeZ)
+{
+    JAVA_ENV_INIT(env);
+    if (!ptr)
+        return false;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3 start(startX, startY, startZ);
+    Vector3 end(endX, endY, endZ);
+    Vector3 size(sizeX, sizeY, sizeZ);
+    return navi->CanPathForward(start, end, size);
+}
+
+JNIEXPORT jboolean JNICALL Java_org_navi_Navi_canPathForwardDefaultNative
+(JNIEnv* env, jobject obj, jlong ptr, jfloat startX, jfloat startY, jfloat startZ,
+    jfloat endX, jfloat endY, jfloat endZ)
+{
+    JAVA_ENV_INIT(env);
+    if (!ptr)
+        return false;
+    Navi* navi = (Navi*)Long2Ptr(ptr);
+    Vector3 start(startX, startY, startZ);
+    Vector3 end(endX, endY, endZ);
+    return navi->CanPathForward(start, end);
 }
 
 #ifdef __cplusplus

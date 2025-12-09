@@ -894,7 +894,7 @@ void Navi::StraightenPath()
             float t = 0;
             dtStatus rayStatus = mNavQuery->raycast(fromRef, path + i * 3, path + j * 3, mPathFilter,
                 &t, nullptr, mSearchPolys, &mSearchedPolyCount, mMaxPolys);
-            if (dtStatusSucceed(rayStatus) && t > 1)
+            if (dtStatusSucceed(rayStatus) && t > 1.0f)
             {
                 removes[j - 1] = true;
                 ++removeCount;
@@ -947,7 +947,7 @@ void Navi::MakePathStraight(int& pathCount, float* path, const Vector3& polySize
             float t = 0;
             dtStatus rayStatus = mNavQuery->raycast(fromRef, path + i * 3, path + j * 3, mPathFilter,
                 &t, nullptr, mSearchPolys, &mSearchedPolyCount, mMaxPolys);
-            if (dtStatusSucceed(rayStatus) && t > 1)
+            if (dtStatusSucceed(rayStatus) && t > 1.0f)
             {
                 removes[j - 1] = true;
                 ++removeCount;
@@ -1068,4 +1068,18 @@ int Navi::FindPath(const Vector3& start, const Vector3& end, const Vector3& poly
     if (mPathCount < 2)
         return DT_FAILURE;
     return status;
+}
+
+float Navi::PathRaycast(const Vector3& start, const Vector3& end, const Vector3& polySize)
+{
+    dtPolyRef fromRef;
+    dtStatus status = mNavQuery->findNearestPoly((float*)&start, (float*)&polySize, mPathFilter, &fromRef, nullptr);
+    if (!dtStatusSucceed(status))
+        return -1.0f;
+    float t = 0;
+    dtStatus rayStatus = mNavQuery->raycast(fromRef, (float*)&start, (float*)&end, mPathFilter,
+        &t, nullptr, mSearchPolys, &mSearchedPolyCount, mMaxPolys);
+    if (dtStatusSucceed(rayStatus))
+        return t;
+    return -1.0f;
 }
