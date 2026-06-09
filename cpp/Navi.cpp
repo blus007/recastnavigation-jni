@@ -636,6 +636,12 @@ bool Navi::LoadRegionsInternal(const char* path)
             return false;
         nlohmann::json data = nlohmann::json::parse(read);
         auto& info = data["info"];
+        int regionType = 1;
+        if (info.find("type") != info.end())
+            regionType = info["type"];
+#ifdef USE_REGION_TYPE1
+        if (regionType != 1)
+            return false;
         mRegionTree.Init(info["x"], info["z"], info["width"], info["height"]);
         const int volumeCount = data["volumes"].size();
         for (int i = 0; i < volumeCount; ++i)
@@ -664,6 +670,51 @@ bool Navi::LoadRegionsInternal(const char* path)
             RegionElement* elem = mRegionTree.Add(regionPtr, volume["deep"]);
             mRegionElemMap.insert(std::pair<int, RegionElement*>(region.id, elem));
         }
+#else
+        if (regionType != 2)
+            return false;
+        mRegionChunkInfo.x = info["x"];
+        mRegionChunkInfo.z = info["z"];
+        mRegionChunkInfo.xCount = info["xCount"];
+        mRegionChunkInfo.zCount = info["zCount"];
+        mRegionChunkInfo.xCellSize = info["xCellSize"];
+        mRegionChunkInfo.zCellSize = info["zCellSize"];
+        const int volumeCount = data["volumes"].size();
+        for (int i = 0; i < volumeCount; ++i)
+        {
+            VolumeRegion* regionPtr = new VolumeRegion;
+            mRegions.push_back(regionPtr);
+
+            auto& region = *regionPtr;
+            auto& volume = data["volumes"][i];
+
+            region.id = volume["id"];
+            region.province = volume["province"];
+            const int vertCount = volume["verts"].size();
+            region.verts.resize(vertCount);
+            for (int j = 0; j < vertCount; ++j)
+            {
+                auto& jvert = volume["verts"][j];
+                Vector3& vert = region.verts[j];
+                vert.x = jvert[0];
+                vert.y = jvert[1];
+                vert.z = jvert[2];
+            }
+            region.CalcAABB();
+            mRegionMap.insert(std::pair<int, VolumeRegion*>(region.id, regionPtr));
+        }
+        auto& regionGrid = data["region"];
+        const int chunkCount = mRegionChunkInfo.xCount * mRegionChunkInfo.zCount;
+        mRegionGrid.resize(chunkCount);
+        const int gridSize = (int)regionGrid.size();
+        for (int i = 0; i < gridSize && i < chunkCount; ++i)
+        {
+            const int idCount = regionGrid[i].size();
+            mRegionGrid[i].resize(idCount);
+            for (int j = 0; j < idCount; ++j)
+                mRegionGrid[i][j] = regionGrid[i][j];
+        }
+#endif
     }
     catch (const std::exception& e)
     {
@@ -678,26 +729,82 @@ void Navi::ClearRegions()
     for (int i = 0; i < mRegions.size(); ++i)
         delete mRegions[i];
     mRegions.clear();
+#ifdef USE_REGION_TYPE1
     mRegionTree.Clear();
     mRegionElemMap.clear();
+#else
+    mRegionGrid.clear();
+    mRegionMap.clear();
+    mRegionChunkInfo.x = 0.0f;
+    mRegionChunkInfo.z = 0.0f;
+    mRegionChunkInfo.xCount = 0;
+    mRegionChunkInfo.zCount = 0;
+    mRegionChunkInfo.xCellSize = 0.0f;
+    mRegionChunkInfo.zCellSize = 0.0f;
+#endif
 }
+
+bool Navi::IsRegionInited()
+{
+#ifdef USE_REGION_TYPE1
+    return mRegionTree.IsInited();
+#else
+    return mRegionChunkInfo.xCount > 0 && mRegionChunkInfo.zCount > 0 && !mRegions.empty();
+#endif
+}
+
+#ifndef USE_REGION_TYPE1
+int Navi::GetRegionChunkIndex(float x, float z) const
+{
+    const RegionChunkInfo& info = mRegionChunkInfo;
+    if (info.xCellSize <= 0.0f || info.zCellSize <= 0.0f)
+        return -1;
+    const int chunkIx = (int)((x - info.x) / info.xCellSize);
+    const int chunkIz = (int)((z - info.z) / info.zCellSize);
+    if (chunkIx < 0 || chunkIz < 0 || chunkIx >= info.xCount || chunkIz >= info.zCount)
+        return -1;
+    return chunkIz * info.xCount + chunkIx;
+}
+
+VolumeRegion* Navi::FindRegionAt(float x, float z)
+{
+    const int chunkIndex = GetRegionChunkIndex(x, z);
+    if (chunkIndex < 0 || chunkIndex >= (int)mRegionGrid.size())
+        return nullptr;
+    const std::vector<int>& ids = mRegionGrid[chunkIndex];
+    for (int i = 0; i < (int)ids.size(); ++i)
+    {
+        auto it = mRegionMap.find(ids[i]);
+        if (it == mRegionMap.end())
+            continue;
+        VolumeRegion* region = it->second;
+        if (region->IsContain(x, z))
+            return region;
+    }
+    return nullptr;
+}
+#endif
 
 bool Navi::PointInRegion(float x, float z, const VolumeRegion& region)
 {
-    if (!mRegionTree.IsInited())
+    if (!IsRegionInited())
     {
         LOG_ERROR("(Navi::PointInRegion)Region is not inited");
         return false;
     }
-
-    // find region
+#ifdef USE_REGION_TYPE1
     std::vector<VolumeRegion*> output;
     bool found = mRegionTree.Intersect(x, z, output, true);
     if (!found)
         return false;
     VolumeRegion* ptRegion = output[0];
-    int province = ptRegion->province;
-    return region.province == province;
+    return region.province == ptRegion->province;
+#else
+    VolumeRegion* ptRegion = FindRegionAt(x, z);
+    if (!ptRegion)
+        return false;
+    return region.province == ptRegion->province;
+#endif
 }
 
 dtStatus Navi::AddObstacle(const Vector3& pos, const float radius, const float height, dtObstacleRef* result)
@@ -730,17 +837,25 @@ dtStatus Navi::RefreshObstacle()
 
 bool Navi::FindProvince(const Vector3& pos, std::vector<int>& provinces)
 {
-    std::vector<VolumeRegion*> output;
     std::vector<VolumeDoor*> outputDoor;
-    bool found = mRegionTree.Intersect(pos.x, pos.z, output, true);
-    if (found)
+#ifdef USE_REGION_TYPE1
     {
-        VolumeRegion* region = output[0];
+        std::vector<VolumeRegion*> output;
+        if (mRegionTree.Intersect(pos.x, pos.z, output, true))
+        {
+            provinces.push_back(output[0]->province);
+            return true;
+        }
+    }
+#else
+    VolumeRegion* region = FindRegionAt(pos.x, pos.z);
+    if (region)
+    {
         provinces.push_back(region->province);
         return true;
     }
-    found = mDoorTree.Intersect(pos.x, pos.z, outputDoor, true);
-    if (!found)
+#endif
+    if (!mDoorTree.Intersect(pos.x, pos.z, outputDoor, true))
         return false;
     VolumeDoor* door = outputDoor[0];
     provinces.push_back(door->links[0]);
@@ -802,7 +917,7 @@ bool Navi::IsProvincePassable(int startProvince, int endProvince)
 
 bool Navi::IsPassable(const Vector3& start, const Vector3& end)
 {
-    if (!mRegionTree.IsInited())
+    if (!IsRegionInited())
     {
         LOG_ERROR("(Navi::IsPassable)Region is not inited");
         return false;

@@ -201,8 +201,26 @@ class NAVI_API Navi
     std::map<int, DoorElement*> mDoorElemMap;
     
     std::vector<VolumeRegion*> mRegions;
+#ifdef USE_REGION_TYPE1
     RegionTree mRegionTree;
     std::map<int, RegionElement*> mRegionElemMap;
+#else
+    struct RegionChunkInfo
+    {
+        float x;
+        float z;
+        int xCount;
+        int zCount;
+        float xCellSize;
+        float zCellSize;
+    };
+    RegionChunkInfo mRegionChunkInfo;
+    std::vector<std::vector<int>> mRegionGrid;
+    std::map<int, VolumeRegion*> mRegionMap;
+
+    int GetRegionChunkIndex(float x, float z) const;
+    VolumeRegion* FindRegionAt(float x, float z);
+#endif
 
     ProvinceLinkMap mProvinceLinkMap;
     
@@ -211,6 +229,7 @@ class NAVI_API Navi
     void ClearDoors();
     bool LoadRegionsInternal(const char* path);
     void ClearRegions();
+    bool IsRegionInited();
     
     void InitDoorPoly(VolumeDoor& door);
     VolumeDoor* FindDoor(const int doorId);
@@ -252,6 +271,7 @@ public:
     bool LoadDoors(const char* path);
     bool LoadRegions(const char* path);
     
+#ifdef USE_REGION_TYPE1
     inline RegionElement* FindRegionElem(int id)
     {
         auto it = mRegionElemMap.find(id);
@@ -259,15 +279,24 @@ public:
             return nullptr;
         return it->second;
     }
+#endif
     inline VolumeRegion* FindRegion(int id)
     {
+#ifdef USE_REGION_TYPE1
         RegionElement* elem = FindRegionElem(id);
         if (!elem)
             return nullptr;
         return elem->GetValue();
+#else
+        auto it = mRegionMap.find(id);
+        if (it == mRegionMap.end())
+            return nullptr;
+        return it->second;
+#endif
     }
     inline int GetRegionId(const Vector3& pos)
     {
+#ifdef USE_REGION_TYPE1
         if (!mRegionTree.IsInited())
             return 0;
         std::vector<VolumeRegion*> output;
@@ -276,6 +305,12 @@ public:
             return 0;
         VolumeRegion* region = output[0];
         return region->id;
+#else
+        VolumeRegion* region = FindRegionAt(pos.x, pos.z);
+        if (!region)
+            return 0;
+        return region->id;
+#endif
     }
     void InitDoorsPoly();
     inline bool IsDoorExist(const int doorId)
