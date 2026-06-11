@@ -673,8 +673,6 @@ bool Navi::LoadRegionsInternal(const char* path)
 #else
         if (regionType != 2)
             return false;
-        mRegionChunkInfo.x = info["x"];
-        mRegionChunkInfo.z = info["z"];
         mRegionChunkInfo.xCount = info["xCount"];
         mRegionChunkInfo.zCount = info["zCount"];
         mRegionChunkInfo.xCellSize = info["xCellSize"];
@@ -700,7 +698,6 @@ bool Navi::LoadRegionsInternal(const char* path)
                 vert.y = jvert[1];
                 vert.z = jvert[2];
             }
-            region.CalcAABB();
             mRegionMap.insert(std::pair<int, VolumeRegion*>(region.id, regionPtr));
         }
         auto& regionGrid = data["region"];
@@ -735,8 +732,6 @@ void Navi::ClearRegions()
 #else
     mRegionGrid.clear();
     mRegionMap.clear();
-    mRegionChunkInfo.x = 0.0f;
-    mRegionChunkInfo.z = 0.0f;
     mRegionChunkInfo.xCount = 0;
     mRegionChunkInfo.zCount = 0;
     mRegionChunkInfo.xCellSize = 0.0f;
@@ -759,8 +754,8 @@ int Navi::GetRegionChunkIndex(float x, float z) const
     const RegionChunkInfo& info = mRegionChunkInfo;
     if (info.xCellSize <= 0.0f || info.zCellSize <= 0.0f)
         return -1;
-    const int chunkIx = (int)((x - info.x) / info.xCellSize);
-    const int chunkIz = (int)((z - info.z) / info.zCellSize);
+    const int chunkIx = (int)(x / info.xCellSize);
+    const int chunkIz = (int)(z / info.zCellSize);
     if (chunkIx < 0 || chunkIz < 0 || chunkIx >= info.xCount || chunkIz >= info.zCount)
         return -1;
     return chunkIz * info.xCount + chunkIx;

@@ -207,8 +207,6 @@ class NAVI_API Navi
 #else
     struct RegionChunkInfo
     {
-        float x;
-        float z;
         int xCount;
         int zCount;
         float xCellSize;
