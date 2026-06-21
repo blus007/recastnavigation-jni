@@ -208,14 +208,9 @@ JNIEXPORT jlong JNICALL Java_org_navi_Navi_createNative
     (JNIEnv *env, jobject obj, jint maxPoly, jint maxObstacle)
 {
     JAVA_ENV_INIT(env);
-    if (maxPoly < 1)
-    {
-        LOG_ERROR("createNative invalid maxPoly = %d", maxPoly);
-        return 0;
-    }
     try
     {
-        Navi* navi = new Navi(maxPoly, maxObstacle);
+        Navi* navi = new Navi(maxPoly <= 0 ? 1024 : maxPoly, maxObstacle);
         return Ptr2Long(navi);
     }
     catch (const std::bad_alloc&)
