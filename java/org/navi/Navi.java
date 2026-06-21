@@ -171,7 +171,7 @@ public class Navi {
                 createdNavis.put(naviPtr, System.currentTimeMillis());
                 log.info("Create navi result = {}", naviPtr);
             } else {
-                log.info("Create a null navi");
+                log.error("Create navi failed, native returned null ptr (maxPoly={}, maxObstacle={})", maxPoly, maxObstacle);
             }
         } finally {
             releaseCurrentThread();

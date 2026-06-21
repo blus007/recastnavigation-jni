@@ -1,4 +1,6 @@
 #include <jni.h>
+#include <new>
+#include <exception>
 #include "stdlib.h"
 #include "cstring"
 #include "DetourCommon.h"
@@ -58,8 +60,7 @@ char* Jstring2String(JNIEnv* env, jstring jstr)
 	}
 
 	const jsize byteLength = env->GetArrayLength(byteArray);
-	bytes = env->GetByteArrayElements(byteArray, JNI_FALSE);
-	if (!bytes || env->ExceptionCheck())
+	if (env->ExceptionCheck())
 	{
 		JniDeleteLocalRef(env, byteArray);
 		JniDeleteLocalRef(env, stringCode);
@@ -68,15 +69,37 @@ char* Jstring2String(JNIEnv* env, jstring jstr)
 		return nullptr;
 	}
 
-	str = (char*)malloc(byteLength + 1);
-	if (str)
+	if (byteLength > 0)
 	{
-		if (byteLength > 0)
-			memcpy(str, bytes, byteLength);
-		str[byteLength] = 0;
+		bytes = env->GetByteArrayElements(byteArray, JNI_FALSE);
+		if (!bytes || env->ExceptionCheck())
+		{
+			JniDeleteLocalRef(env, byteArray);
+			JniDeleteLocalRef(env, stringCode);
+			JniDeleteLocalRef(env, jstringClass);
+			JniClearPendingException(env);
+			return nullptr;
+		}
 	}
 
-	env->ReleaseByteArrayElements(byteArray, bytes, JNI_ABORT);
+	str = (char*)malloc(byteLength + 1);
+	if (!str)
+	{
+		if (bytes)
+			env->ReleaseByteArrayElements(byteArray, bytes, JNI_ABORT);
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	if (byteLength > 0)
+		memcpy(str, bytes, byteLength);
+	str[byteLength] = 0;
+
+	if (bytes)
+		env->ReleaseByteArrayElements(byteArray, bytes, JNI_ABORT);
 	JniDeleteLocalRef(env, byteArray);
 	JniDeleteLocalRef(env, stringCode);
 	JniDeleteLocalRef(env, jstringClass);
@@ -185,10 +208,31 @@ JNIEXPORT jlong JNICALL Java_org_navi_Navi_createNative
     (JNIEnv *env, jobject obj, jint maxPoly, jint maxObstacle)
 {
     JAVA_ENV_INIT(env);
-    //printf("Java_org_navi_Navi_createNative:env=%p obj=%p\n", env, obj);
-    Navi* navi = new Navi(maxPoly, maxObstacle);
-    jlong ptr = Ptr2Long(navi);
-    return ptr;
+    if (maxPoly < 1)
+    {
+        LOG_ERROR("createNative invalid maxPoly = %d", maxPoly);
+        return 0;
+    }
+    try
+    {
+        Navi* navi = new Navi(maxPoly, maxObstacle);
+        return Ptr2Long(navi);
+    }
+    catch (const std::bad_alloc&)
+    {
+        LOG_ERROR("createNative failed to allocate Navi(maxPoly=%d, maxObstacle=%d)", maxPoly, maxObstacle);
+        return 0;
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("createNative failed: %s", e.what());
+        return 0;
+    }
+    catch (...)
+    {
+        LOG_ERROR("createNative failed with unknown error");
+        return 0;
+    }
 }
     
 JNIEXPORT void JNICALL Java_org_navi_Navi_destroyNative

@@ -127,7 +127,7 @@ struct NAVI_API GameVolume
     std::vector<Vector3> verts;
 
     void CalcAABB();
-    bool IsContain(float x, float y) const;
+    bool IsContain(float x, float z) const;
 
     const Recast::AABB* GetAABB() const
     {

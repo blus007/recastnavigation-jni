@@ -400,10 +400,18 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
         if (dtStatusFailed(addTileStatus))
         {
             dtFree(data);
+            fclose(fp);
+            ClearMesh();
+            return false;
         }
-        
-        if (tile)
-            mTileCache->buildNavMeshTile(tile, mNavMesh);
+
+        status = mTileCache->buildNavMeshTile(tile, mNavMesh);
+        if (dtStatusFailed(status))
+        {
+            fclose(fp);
+            ClearMesh();
+            return false;
+        }
     }
     
     fclose(fp);
@@ -429,7 +437,14 @@ bool Navi::LoadDoors(const char* path)
     if (!LoadDoorsInternal(path))
         return false;
     InitDoorsPoly();
-    
+
+    if (mDoors.empty())
+    {
+        mDoorTree.Clear();
+        InitProvinceLink();
+        return true;
+    }
+
     float minX = HUGE_VALF;
     float maxX = -HUGE_VALF;
     float minZ = HUGE_VALF;
@@ -437,7 +452,12 @@ bool Navi::LoadDoors(const char* path)
     for (int i = 0; i < mDoors.size(); ++i)
     {
         VolumeDoor* door = &mDoors[i];
-        mDoorMap.insert(std::pair<int, VolumeDoor*>(door->id, door));
+        if (!mDoorMap.emplace(door->id, door).second)
+        {
+            LOG_ERROR("LoadDoors duplicate door id in map = %d", door->id);
+            ClearDoors();
+            return false;
+        }
 
         float left = door->aabb.GetLeft();
         float right = door->aabb.GetRight();
@@ -454,7 +474,12 @@ bool Navi::LoadDoors(const char* path)
     {
         VolumeDoor& door = mDoors[i];
         DoorElement* elem = mDoorTree.Add(&door, 0);
-        mDoorElemMap.insert(std::pair<int, DoorElement*>(door.id, elem));
+        if (!mDoorElemMap.emplace(door.id, elem).second)
+        {
+            LOG_ERROR("LoadDoors duplicate door element id = %d", door.id);
+            ClearDoors();
+            return false;
+        }
     }
     InitProvinceLink();
 
@@ -473,13 +498,23 @@ bool Navi::LoadDoorsInternal(const char* path)
             return false;
         nlohmann::json data = nlohmann::json::parse(read);
         const int volumeCount = data["volumes"].size();
+        std::set<int> doorIds;
         for (int i = 0; i < volumeCount; ++i)
         {
+            auto& volume = data["volumes"][i];
+            const int doorId = volume["id"];
+            if (doorIds.find(doorId) != doorIds.end())
+            {
+                LOG_ERROR("LoadDoors duplicate door id = %d", doorId);
+                ClearDoors();
+                return false;
+            }
+            doorIds.insert(doorId);
+
             mDoors.push_back(VolumeDoor());
             auto& door = mDoors.back();
-            auto& volume = data["volumes"][i];
 
-            door.id = volume["id"];
+            door.id = doorId;
             const int vertCount = volume["verts"].size();
             door.verts.resize(vertCount);
             for (int j = 0; j < vertCount; ++j)
@@ -981,15 +1016,17 @@ void Navi::MakePathOutOfBlock(const Vector3& polySize)
 {
     if (mPathCount < 2)
         return;
-    int lastIndex = mPathCount - 1;
+    const int lastIndex = mPathCount - 1;
     for (int i = lastIndex; i > 0; --i)
     {
-        Vector3& fromPt = mPath[lastIndex];
-        Vector3& toPt = mPath[lastIndex - 1];
+        Vector3& fromPt = mPath[i];
+        Vector3& toPt = mPath[i - 1];
         Vector3 diffPt(toPt);
         diffPt.Sub(fromPt);
         float length = diffPt.Length();
-        const int splitCount = (int)(length / 0.1f);
+        int splitCount = (int)(length / 0.1f);
+        if (splitCount < 1)
+            splitCount = 1;
         diffPt.Mul(1.0f / (float)splitCount);
         Vector3 pt(fromPt);
         for (int j = 0; j < splitCount; ++j)
