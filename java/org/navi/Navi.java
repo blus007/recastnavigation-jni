@@ -58,9 +58,15 @@ public class Navi {
     // level:0-debug 1-warning 2-error
     public static void jniLog(int level, String message) {
          switch (level) {
-             case 0: log.info(message);
-             case 1: log.warn(message);
-             case 2: log.error(message);
+             case 0:
+                 log.info(message);
+                 break;
+             case 1:
+                 log.warn(message);
+                 break;
+             case 2:
+                 log.error(message);
+                 break;
          }
     }
 
