@@ -142,12 +142,12 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadRegionsNative
     return success;
 }
     
-JNIEXPORT jboolean JNICALL Java_org_navi_Navi_getRegionIdNative
+JNIEXPORT jint JNICALL Java_org_navi_Navi_getRegionIdNative
     (JNIEnv *env, jobject obj, jlong ptr, jfloat x, jfloat z)
 {
     JAVA_ENV_INIT(env);
     if (!ptr)
-        return false;
+        return 0;
     Navi* navi = (Navi*)Long2Ptr(ptr);
     Vector3 pos(x, 0, z);
     return navi->GetRegionId(pos);

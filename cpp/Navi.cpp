@@ -239,14 +239,24 @@ Navi::Navi(int maxPolys, int maxObstacles)
     mPathRemoves = new bool[mMaxPolys];
 }
 
-Navi::~Navi()
+void Navi::ClearMesh()
 {
     dtFreeNavMeshQuery(mNavQuery);
-    dtFreeNavMesh(mNavMesh);
+    mNavQuery = nullptr;
     dtFreeTileCache(mTileCache);
+    mTileCache = nullptr;
+    dtFreeNavMesh(mNavMesh);
+    mNavMesh = nullptr;
+}
+
+Navi::~Navi()
+{
+    ClearMesh();
     
-    delete mPath;
-    delete mSearchPolys;
+    delete[] mPath;
+    delete[] mSearchPolys;
+    delete[] mPathPolys;
+    delete[] mPathRemoves;
     delete mPathFilter;
     delete mPolyFilter;
     
@@ -292,9 +302,7 @@ void Navi::SetPolyFilter(int include, int exclude)
 
 bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
 {
-    dtFreeNavMeshQuery(mNavQuery);
-    dtFreeNavMesh(mNavMesh);
-    dtFreeTileCache(mTileCache);
+    ClearMesh();
 
     FILE* fp = fopen(path, "rb");
     if (!fp)
@@ -334,6 +342,7 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
     if (dtStatusFailed(status))
     {
         fclose(fp);
+        ClearMesh();
         return false;
     }
     
@@ -341,6 +350,7 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
     if (!mTileCache)
     {
         fclose(fp);
+        ClearMesh();
         return false;
     }
     
@@ -348,6 +358,7 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
     if (dtStatusFailed(status))
     {
         fclose(fp);
+        ClearMesh();
         return false;
     }
     
@@ -360,13 +371,19 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
         {
             // Error or early EOF
             fclose(fp);
+            ClearMesh();
             return false;
         }
         if (!tileHeader.tileRef || !tileHeader.dataSize)
             break;
         
         unsigned char* data = (unsigned char*)dtAlloc(tileHeader.dataSize, DT_ALLOC_PERM);
-        if (!data) break;
+        if (!data)
+        {
+            fclose(fp);
+            ClearMesh();
+            return false;
+        }
         memset(data, 0, tileHeader.dataSize);
         size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, fp);
         if( tileDataReadReturnCode != 1)
@@ -374,6 +391,7 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
             // Error or early EOF
             dtFree(data);
             fclose(fp);
+            ClearMesh();
             return false;
         }
         
@@ -391,10 +409,16 @@ bool Navi::LoadMesh(const char* path, const int maxSearchNodes)
     fclose(fp);
     
     mNavQuery = dtAllocNavMeshQuery();
+    if (!mNavQuery)
+    {
+        ClearMesh();
+        return false;
+    }
     status = mNavQuery->init(mNavMesh, maxSearchNodes);
     if (dtStatusFailed(status))
     {
         LOG_ERROR("Load Mesh failed by mNavQuery->init");
+        ClearMesh();
         return false;
     }
     return true;

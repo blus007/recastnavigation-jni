@@ -223,6 +223,7 @@ class NAVI_API Navi
     ProvinceLinkMap mProvinceLinkMap;
     
     void InitProvinceLink();
+    void ClearMesh();
     bool LoadDoorsInternal(const char* path);
     void ClearDoors();
     bool LoadRegionsInternal(const char* path);
