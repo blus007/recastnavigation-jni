@@ -7,37 +7,150 @@
 #include "Util.h"
 #include "Navi.h"
 
+void JniClearPendingException(JNIEnv* env);
+void JniDeleteLocalRef(JNIEnv* env, jobject ref);
+
 COMPILE_TEST(JLONG_SIZE, sizeof(jlong) == 8);
 
 char* Jstring2String(JNIEnv* env, jstring jstr)
 {
-	char* str = nullptr;
-	jclass jstringClass = env->FindClass("java/lang/String");
-	jstring stringCode = env->NewStringUTF("utf-8");
-	jmethodID methodID = env->GetMethodID(jstringClass, "getBytes", "(Ljava/lang/String;)[B");
-	jbyteArray byteArray = (jbyteArray)env->CallObjectMethod(jstr, methodID, stringCode);
-	jsize byteLength = env->GetArrayLength(byteArray);
-	jbyte* bytes = env->GetByteArrayElements(byteArray, JNI_FALSE);
+	if (!env || !jstr)
+		return nullptr;
 
-	if (byteLength > 0)
+	char* str = nullptr;
+	jbyte* bytes = nullptr;
+	jbyteArray byteArray = nullptr;
+
+	jclass jstringClass = env->FindClass("java/lang/String");
+	if (!jstringClass || env->ExceptionCheck())
 	{
-		str = (char*)malloc(byteLength + 1);
-		memcpy(str, bytes, byteLength);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	jstring stringCode = env->NewStringUTF("utf-8");
+	if (!stringCode || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	jmethodID methodID = env->GetMethodID(jstringClass, "getBytes", "(Ljava/lang/String;)[B");
+	if (!methodID || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	byteArray = (jbyteArray)env->CallObjectMethod(jstr, methodID, stringCode);
+	if (!byteArray || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	const jsize byteLength = env->GetArrayLength(byteArray);
+	bytes = env->GetByteArrayElements(byteArray, JNI_FALSE);
+	if (!bytes || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	str = (char*)malloc(byteLength + 1);
+	if (str)
+	{
+		if (byteLength > 0)
+			memcpy(str, bytes, byteLength);
 		str[byteLength] = 0;
 	}
-	env->ReleaseByteArrayElements(byteArray, bytes, 0);
+
+	env->ReleaseByteArrayElements(byteArray, bytes, JNI_ABORT);
+	JniDeleteLocalRef(env, byteArray);
+	JniDeleteLocalRef(env, stringCode);
+	JniDeleteLocalRef(env, jstringClass);
+	JniClearPendingException(env);
 	return str;
 }
 
 jstring String2Jstring(JNIEnv* env, const char* str)
 {
-	int strSize = strlen(str);
-	jclass jstringClass = env->FindClass("Ljava/lang/String;");
+	if (!env || !str)
+		return nullptr;
+
+	const int strSize = (int)strlen(str);
+
+	jclass jstringClass = env->FindClass("java/lang/String");
+	if (!jstringClass || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
 	jmethodID methodID = env->GetMethodID(jstringClass, "<init>", "([BLjava/lang/String;)V");
+	if (!methodID || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
 	jbyteArray byteArray = env->NewByteArray(strSize);
-	env->SetByteArrayRegion(byteArray, 0, strSize, (jbyte*)str);
+	if (!byteArray || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	env->SetByteArrayRegion(byteArray, 0, strSize, (const jbyte*)str);
+	if (env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
 	jstring stringCode = env->NewStringUTF("utf-8");
-	return (jstring)env->NewObject(jstringClass, methodID, byteArray, stringCode);
+	if (!stringCode || env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	jstring result = (jstring)env->NewObject(jstringClass, methodID, byteArray, stringCode);
+	if (env->ExceptionCheck())
+	{
+		JniDeleteLocalRef(env, result);
+		JniDeleteLocalRef(env, stringCode);
+		JniDeleteLocalRef(env, byteArray);
+		JniDeleteLocalRef(env, jstringClass);
+		JniClearPendingException(env);
+		return nullptr;
+	}
+
+	JniDeleteLocalRef(env, stringCode);
+	JniDeleteLocalRef(env, byteArray);
+	JniDeleteLocalRef(env, jstringClass);
+	JniClearPendingException(env);
+	return result;
 }
 
 inline long long Ptr2Long(void* ptr)
@@ -107,7 +220,11 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadMeshNative
     if (!ptr)
         return false;
     Navi* navi = (Navi*)Long2Ptr(ptr);
+    if (!filePath)
+        return false;
 	char* path = Jstring2String(env, filePath);
+    if (!path)
+        return false;
     printf("load mesh native:%s\n", path);
     jboolean success = navi->LoadMesh(path, maxSearchNodes);
 	free(path);
@@ -121,7 +238,11 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadDoorsNative
     if (!ptr)
         return false;
     Navi* navi = (Navi*)Long2Ptr(ptr);
+    if (!filePath)
+        return false;
     char* path = Jstring2String(env, filePath);
+    if (!path)
+        return false;
     printf("load doors native:%s\n", path);
     jboolean success = navi->LoadDoors(path);
     free(path);
@@ -135,7 +256,11 @@ JNIEXPORT jboolean JNICALL Java_org_navi_Navi_loadRegionsNative
     if (!ptr)
         return false;
     Navi* navi = (Navi*)Long2Ptr(ptr);
+    if (!filePath)
+        return false;
     char* path = Jstring2String(env, filePath);
+    if (!path)
+        return false;
     printf("load regions native:%s\n", path);
     jboolean success = navi->LoadRegions(path);
     free(path);
