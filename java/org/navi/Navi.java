@@ -91,16 +91,54 @@ public class Navi {
     private static native int getMaxPosSizeNative();
 
     private long naviPtr = 0;
+    private int bindCount = 0;
+    private Thread activeThread = null;
     private float[] posArray = new float[MAX_SEARCH_POLYS * 3];
     private int[] posSize = new int[1];
 
+    private synchronized void bindCurrentThread() {
+        Thread current = Thread.currentThread();
+        if (bindCount == 0) {
+            activeThread = current;
+        } else if (activeThread != current) {
+            throwWrongThread(activeThread, current);
+        }
+        ++bindCount;
+    }
+
+    private synchronized void releaseCurrentThread() {
+        if (bindCount <= 0) {
+            return;
+        }
+        --bindCount;
+        if (bindCount == 0) {
+            activeThread = null;
+        }
+    }
+
+    private void throwWrongThread(Thread owner, Thread current) {
+        throw new IllegalStateException(String.format(
+            "Navi instance is in use by thread [%s] (id=%d), cannot be used from thread [%s] (id=%d)",
+            owner.getName(), owner.getId(), current.getName(), current.getId()));
+    }
+
     public int getPosSize() {
-        return posSize[0];
+        bindCurrentThread();
+        try {
+            return posSize[0];
+        } finally {
+            releaseCurrentThread();
+        }
     }
 
     // 3 float(x, y, z) = 1 pos
     public float[] getPosArray() {
-        return posArray;
+        bindCurrentThread();
+        try {
+            return posArray;
+        } finally {
+            releaseCurrentThread();
+        }
     }
 
     public Navi() {
@@ -112,7 +150,12 @@ public class Navi {
     }
 
     public boolean isCreated() {
-        return naviPtr != 0;
+        bindCurrentThread();
+        try {
+            return naviPtr != 0;
+        } finally {
+            releaseCurrentThread();
+        }
     }
 
     private native long createNative(int maxPoly, int maxObstacle);
@@ -121,40 +164,55 @@ public class Navi {
             log.info("Create navi twice, ptr = {}", naviPtr);
             return;
         }
-        naviPtr = createNative(maxPoly, maxObstacle);
-        if (naviPtr != 0) {
-            createdNavis.put(naviPtr, System.currentTimeMillis());
-            log.info("Create navi result = {}", naviPtr);
-        } else {
-            log.info("Create a null navi");
+        bindCurrentThread();
+        try {
+            naviPtr = createNative(maxPoly, maxObstacle);
+            if (naviPtr != 0) {
+                createdNavis.put(naviPtr, System.currentTimeMillis());
+                log.info("Create navi result = {}", naviPtr);
+            } else {
+                log.info("Create a null navi");
+            }
+        } finally {
+            releaseCurrentThread();
         }
     }
     
     private native void destroyNative(long ptr);
     public void destroy() {
-        if (naviPtr == 0) {
-            log.error("Destroy a null navi");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("Destroy a null navi");
+                return;
+            }
+            long ptr = naviPtr;
+            if (createdNavis.containsKey(ptr)) {
+                createdNavis.remove(ptr);
+                log.info("Destroy navi = {}", ptr);
+                destroyNative(ptr);
+                naviPtr = 0;
+            } else {
+                naviPtr = 0;
+                log.error("Destroy but not find navi = {}", ptr);
+            }
+        } finally {
+            releaseCurrentThread();
         }
-        if (createdNavis.containsKey(naviPtr)) {
-            createdNavis.remove(naviPtr);
-            log.info("Destroy navi = {}", naviPtr);
-        } else {
-            naviPtr = 0;
-            log.error("Destroy but not find navi = {}", naviPtr);
-            return;
-        }
-        destroyNative(naviPtr);
-        naviPtr = 0;
     }
         
     private native void setDefaultPolySizeNative(long ptr, float x, float y, float z);
     public void setDefaultPolySize(float x, float y, float z) {
-        if (naviPtr == 0) {
-            log.error("setDefaultPolySize but navi is null");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("setDefaultPolySize but navi is null");
+                return;
+            }
+            setDefaultPolySizeNative(naviPtr, x, y, z);
+        } finally {
+            releaseCurrentThread();
         }
-        setDefaultPolySizeNative(naviPtr, x, y, z);
     }
 
     private native boolean loadMeshNative(long ptr, String filePath, int maxSearchNodes);
@@ -162,101 +220,156 @@ public class Navi {
         return loadMesh(filePath, MAX_QUERY_INIT_NODE);
     }
     public boolean loadMesh(String filePath, int maxSearchNodes) {
-        if (naviPtr == 0) {
-            log.error("loadMesh but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("loadMesh but navi is null");
+                return false;
+            }
+            return loadMeshNative(naviPtr, filePath, maxSearchNodes);
+        } finally {
+            releaseCurrentThread();
         }
-        return loadMeshNative(naviPtr, filePath, maxSearchNodes);
     }
         
     private native boolean loadDoorsNative(long ptr, String filePath);
     public boolean loadDoors(String filePath) {
-        if (naviPtr == 0) {
-            log.error("loadDoors but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("loadDoors but navi is null");
+                return false;
+            }
+            return loadDoorsNative(naviPtr, filePath);
+        } finally {
+            releaseCurrentThread();
         }
-        return loadDoorsNative(naviPtr, filePath);
     }
 
     private native boolean loadRegionsNative(long ptr, String filePath);
     public boolean loadRegions(String filePath) {
-        if (naviPtr == 0) {
-            log.error("loadRegions but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("loadRegions but navi is null");
+                return false;
+            }
+            return loadRegionsNative(naviPtr, filePath);
+        } finally {
+            releaseCurrentThread();
         }
-        return loadRegionsNative(naviPtr, filePath);
     }
     
     private native int getRegionIdNative(long ptr, float x, float z);
     public int getRegionId(float x, float z) {
-        if (naviPtr == 0) {
-            log.error("getRegionId but navi is null");
-            return 0;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("getRegionId but navi is null");
+                return 0;
+            }
+            return getRegionIdNative(naviPtr, x, z);
+        } finally {
+            releaseCurrentThread();
         }
-        return getRegionIdNative(naviPtr, x, z);
     }
 
     private native void initDoorsPolyNative(long ptr);
     public void initDoorsPoly() {
-        if (naviPtr == 0) {
-            log.error("initDoorsPoly but navi is null");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("initDoorsPoly but navi is null");
+                return;
+            }
+            initDoorsPolyNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        initDoorsPolyNative(naviPtr);
     }
 
     private native boolean isDoorExistNative(long ptr, int doorId);
     public boolean isDoorExist(int doorId) {
-        if (naviPtr == 0) {
-            log.error("isDoorExist but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("isDoorExist but navi is null");
+                return false;
+            }
+            return isDoorExistNative(naviPtr, doorId);
+        } finally {
+            releaseCurrentThread();
         }
-        return isDoorExistNative(naviPtr, doorId);
     }
         
     private native boolean isDoorOpenNative(long ptr, int doorId);
     public boolean isDoorOpen(int doorId) {
-        if (naviPtr == 0) {
-            log.error("isDoorOpen but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("isDoorOpen but navi is null");
+                return false;
+            }
+            return isDoorOpenNative(naviPtr, doorId);
+        } finally {
+            releaseCurrentThread();
         }
-        return isDoorOpenNative(naviPtr, doorId);
     }
 
     private native void openDoorNative(long ptr, int doorId, boolean open);
     public void openDoor(int doorId, boolean open) {
-        if (naviPtr == 0) {
-            log.error("openDoor but navi is null");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("openDoor but navi is null");
+                return;
+            }
+            openDoorNative(naviPtr, doorId, open);
+        } finally {
+            releaseCurrentThread();
         }
-        openDoorNative(naviPtr, doorId, open);
     }
         
     private native void openAllDoorsNative(long ptr, boolean open);
     public void openAllDoors(boolean open) {
-        if (naviPtr == 0) {
-            log.error("openAllDoors but navi is null");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("openAllDoors but navi is null");
+                return;
+            }
+            openAllDoorsNative(naviPtr, open);
+        } finally {
+            releaseCurrentThread();
         }
-        openAllDoorsNative(naviPtr, open);
     }
 
     private native void closeAllDoorsPolyNative(long ptr);
     public void closeAllDoorsPoly() {
-        if (naviPtr == 0) {
-            log.error("closeAllDoorsPoly but navi is null");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("closeAllDoorsPoly but navi is null");
+                return;
+            }
+            closeAllDoorsPolyNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        closeAllDoorsPolyNative(naviPtr);
     }
 
     private native void recoverAllDoorsPolyNative(long ptr);
     public void recoverAllDoorsPoly() {
-        if (naviPtr == 0) {
-            log.error("recoverAllDoorsPoly but navi is null");
-            return;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("recoverAllDoorsPoly but navi is null");
+                return;
+            }
+            recoverAllDoorsPolyNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        recoverAllDoorsPolyNative(naviPtr);
     }
         
     private native int addObstacleNative(long ptr,
@@ -264,64 +377,99 @@ public class Navi {
          float radius, float height);
     public int addObstacle(float posX, float posY, float posZ,
          float radius, float height) {
-        if (naviPtr == 0) {
-            log.error("addObstacle but navi is null");
-            return 0;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("addObstacle but navi is null");
+                return 0;
+            }
+            return addObstacleNative(naviPtr, posX, posY, posZ, radius, height);
+        } finally {
+            releaseCurrentThread();
         }
-        return addObstacleNative(naviPtr, posX, posY, posZ, radius, height);
     }
     public int addObstacleOffset(float posX, float posY, float posZ,
          float radius, float height) {
-        if (naviPtr == 0) {
-            log.error("addObstacleOffset but navi is null");
-            return 0;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("addObstacleOffset but navi is null");
+                return 0;
+            }
+            return addObstacleNative(naviPtr, posX, posY - 1.0f, posZ, radius, height + 1.0f);
+        } finally {
+            releaseCurrentThread();
         }
-        return addObstacleNative(naviPtr, posX, posY - 1.0f, posZ, radius, height + 1.0f);
     }
         
     private native boolean removeObstacleNative(long ptr, int obstacleRef);
     public boolean removeObstacle(int obstacleRef) {
-        if (naviPtr == 0) {
-            log.error("removeObstacle but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("removeObstacle but navi is null");
+                return false;
+            }
+            return removeObstacleNative(naviPtr, obstacleRef);
+        } finally {
+            releaseCurrentThread();
         }
-        return removeObstacleNative(naviPtr, obstacleRef);
     }
         
     private native boolean refreshObstacleNative(long ptr);
     public boolean refreshObstacle() {
-        if (naviPtr == 0) {
-            log.error("refreshObstacle but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("refreshObstacle but navi is null");
+                return false;
+            }
+            return refreshObstacleNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        return refreshObstacleNative(naviPtr);
     }
 
     private native int getMaxObstacleReqCountNative(long ptr);
     public int getMaxObstacleReqCount() {
-        if (naviPtr == 0) {
-            log.error("getMaxObstacleReqCount but navi is null");
-            return 0;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("getMaxObstacleReqCount but navi is null");
+                return 0;
+            }
+            return getMaxObstacleReqCountNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        return getMaxObstacleReqCountNative(naviPtr);
     }
 
     private native int getAddedObstacleReqCountNative(long ptr);
     public int getAddedObstacleReqCount() {
-        if (naviPtr == 0) {
-            log.error("getAddedObstacleReqCount but navi is null");
-            return 0;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("getAddedObstacleReqCount but navi is null");
+                return 0;
+            }
+            return getAddedObstacleReqCountNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        return getAddedObstacleReqCountNative(naviPtr);
     }
 
     private native int getObstacleReqRemainCountNative(long ptr);
     public int getObstacleReqRemainCount() {
-        if (naviPtr == 0) {
-            log.error("getObstacleReqRemainCount but navi is null");
-            return 0;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("getObstacleReqRemainCount but navi is null");
+                return 0;
+            }
+            return getObstacleReqRemainCountNative(naviPtr);
+        } finally {
+            releaseCurrentThread();
         }
-        return getObstacleReqRemainCountNative(naviPtr);
     }
 
     private native int findPathNative(long ptr, float[] posArray, int arraySize, int[] posSize,
@@ -331,12 +479,17 @@ public class Navi {
     public int findPath(float startX, float startY, float startZ,
          float endX, float endY, float endZ,
          float sizeX, float sizeY, float sizeZ) {
-        if (naviPtr == 0) {
-            log.error("findPath but navi is null");
-            return FAILURE;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("findPath but navi is null");
+                return FAILURE;
+            }
+            return findPathNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
+                endX, endY, endZ, sizeX, sizeY, sizeZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return findPathNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
-            endX, endY, endZ, sizeX, sizeY, sizeZ);
     }
         
     private native int findPathDefaultNative(long ptr, float[] posArray, int arraySize, int[] posSize,
@@ -344,31 +497,46 @@ public class Navi {
          float endX, float endY, float endZ);
     public int findPath(float startX, float startY, float startZ,
          float endX, float endY, float endZ) {
-        if (naviPtr == 0) {
-            log.error("findPath default but navi is null");
-            return FAILURE;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("findPath default but navi is null");
+                return FAILURE;
+            }
+            return findPathDefaultNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
+                endX, endY, endZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return findPathDefaultNative(naviPtr, posArray, MAX_SEARCH_POLYS, posSize, startX, startY, startZ,
-            endX, endY, endZ);
     }
 
     private native int makePathStraightNative(long ptr, float[] posArray, int arraySize,
          float sizeX, float sizeY, float sizeZ);
     public int makePathStraight(float[] posArray, int arraySize, float sizeX, float sizeY, float sizeZ) {
-        if (naviPtr == 0) {
-            log.error("makePathStraight but navi is null");
-            return arraySize;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("makePathStraight but navi is null");
+                return arraySize;
+            }
+            return makePathStraightNative(naviPtr, posArray, arraySize, sizeX, sizeY, sizeZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return makePathStraightNative(naviPtr, posArray, arraySize, sizeX, sizeY, sizeZ);
     }
 
     private native int makePathStraightDefaultNative(long ptr, float[] posArray, int arraySize);
     public int makePathStraightDefault(float[] posArray, int arraySize) {
-        if (naviPtr == 0) {
-            log.error("makePathStraightDefault but navi is null");
-            return arraySize;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("makePathStraightDefault but navi is null");
+                return arraySize;
+            }
+            return makePathStraightDefaultNative(naviPtr, posArray, arraySize);
+        } finally {
+            releaseCurrentThread();
         }
-        return makePathStraightDefaultNative(naviPtr, posArray, arraySize);
     }
 
     private native float pathRaycastNative(long ptr,
@@ -378,12 +546,17 @@ public class Navi {
     public float pathRaycast(float startX, float startY, float startZ,
          float endX, float endY, float endZ,
          float sizeX, float sizeY, float sizeZ) {
-        if (naviPtr == 0) {
-            log.error("pathRaycast but navi is null");
-            return -1.0f;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("pathRaycast but navi is null");
+                return -1.0f;
+            }
+            return pathRaycastNative(naviPtr, startX, startY, startZ,
+                endX, endY, endZ, sizeX, sizeY, sizeZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return pathRaycastNative(naviPtr, startX, startY, startZ,
-            endX, endY, endZ, sizeX, sizeY, sizeZ);
     }
 
     private native float pathRaycastDefaultNative(long ptr,
@@ -391,12 +564,17 @@ public class Navi {
          float endX, float endY, float endZ);
     public float pathRaycastDefault(float startX, float startY, float startZ,
          float endX, float endY, float endZ) {
-        if (naviPtr == 0) {
-            log.error("pathRaycastDefault but navi is null");
-            return -1.0f;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("pathRaycastDefault but navi is null");
+                return -1.0f;
+            }
+            return pathRaycastDefaultNative(naviPtr, startX, startY, startZ,
+                endX, endY, endZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return pathRaycastDefaultNative(naviPtr, startX, startY, startZ,
-            endX, endY, endZ);
     }
 
     private native boolean canPathForwardNative(long ptr,
@@ -406,12 +584,17 @@ public class Navi {
     public boolean canPathForward(float startX, float startY, float startZ,
          float endX, float endY, float endZ,
          float sizeX, float sizeY, float sizeZ) {
-        if (naviPtr == 0) {
-            log.error("canPathForward but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("canPathForward but navi is null");
+                return false;
+            }
+            return canPathForwardNative(naviPtr, startX, startY, startZ,
+                endX, endY, endZ, sizeX, sizeY, sizeZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return canPathForwardNative(naviPtr, startX, startY, startZ,
-            endX, endY, endZ, sizeX, sizeY, sizeZ);
     }
 
     private native boolean canPathForwardDefaultNative(long ptr,
@@ -419,11 +602,16 @@ public class Navi {
          float endX, float endY, float endZ);
     public boolean canPathForwardDefault(float startX, float startY, float startZ,
          float endX, float endY, float endZ) {
-        if (naviPtr == 0) {
-            log.error("canPathForwardDefault but navi is null");
-            return false;
+        bindCurrentThread();
+        try {
+            if (naviPtr == 0) {
+                log.error("canPathForwardDefault but navi is null");
+                return false;
+            }
+            return canPathForwardDefaultNative(naviPtr, startX, startY, startZ,
+                endX, endY, endZ);
+        } finally {
+            releaseCurrentThread();
         }
-        return canPathForwardDefaultNative(naviPtr, startX, startY, startZ,
-            endX, endY, endZ);
     }
 }

@@ -21,4 +21,5 @@ public:
 	JavaEnvIniter(void* env);
 	~JavaEnvIniter();
 };
-#define JAVA_ENV_INIT(env) JavaEnvIniter __initer__(env)
+//#define JAVA_ENV_INIT(env) JavaEnvIniter __initer__(env)
+#define JAVA_ENV_INIT(env) 
